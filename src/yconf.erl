@@ -739,6 +739,8 @@ read_yaml(Path, Validators, Paths) ->
 				  replace_macros(Y2, Macros)
 			  end),
 		    V(Y);
+		{ok, []} ->
+		    [];
 		{error, Why} ->
 		    fail({bad_yaml, Why, Path})
 	    end
