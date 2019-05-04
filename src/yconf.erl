@@ -18,8 +18,11 @@
 -module(yconf).
 
 %% API
--export([start/0, stop/0, parse/1, parse/2, fail/2]).
--export([format_error/1, format_error/2, best_match/2]).
+-export([start/0, stop/0]).
+-export([parse/1, parse/2]).
+-export([load/2, load/3, load/4, load/5, fail/2]).
+-export([format_error/1, format_error/2]).
+-export([best_match/2]).
 %% Simple types
 -export([pos_int/0, pos_int/1, non_neg_int/0, non_neg_int/1]).
 -export([int/0, int/2, number/1, octal/0]).
@@ -42,13 +45,19 @@
 -export([options/1, options/2, options/3]).
 
 -define(is_validator(Term), is_function(Term, 1)).
--define(STACK, yconf_stack).
+-ifndef(deprecated_stacktrace).
+-define(EX_RULE(Class, Reason, Stack), Class:Reason:Stack).
+-define(EX_STACK(Stack), Stack).
+-else.
+-define(EX_RULE(Class, Reason, _), Class:Reason).
+-define(EX_STACK(_), erlang:get_stacktrace()).
+-endif.
 
 -type infinity() :: infinity | infinite | unlimited.
 -type timeout_unit() :: millisecond | second | minute | hour | day.
 -type exports() :: [{atom(), arity()} | [{atom(), arity()}]].
 -type options() :: [{atom(), term()}].
--type stack() :: [atom()].
+-type ctx() :: [atom()].
 -type yaml_val() :: atom() | number() | binary().
 -type yaml_list() :: [yaml()].
 -type yaml_map() :: [{yaml_val(), yaml()}].
@@ -74,19 +83,53 @@ start() ->
 stop() ->
     ok.
 
--spec parse(file:filename_all()) -> {ok, yaml_map()} | {error, error_reason()}.
+-spec parse(file:filename_all()) -> {ok, options()} | {error, error_reason()}.
 parse(Path) ->
     parse(Path, [replace_macros, include_files]).
 
 -spec parse(file:filename_all(), [parse_option()]) ->
-		   {ok, yaml_map()} | {error, error_reason()}.
+		   {ok, options()} | {error, error_reason()}.
 parse(Path0, Opts) ->
     Path = unicode:characters_to_binary(Path0),
-    Validators = validators(Opts),
-    try {ok, read_yaml(prep_path(Path), Validators, [])}
-    catch _:{?MODULE, Why, Stack} ->
-	    io:format("~s~n", [format_error(Why, Stack)]),
-	    {error, Why, Stack}
+    try {ok, read_yaml(prep_path(Path), validators(Opts), [])}
+    catch _:{?MODULE, Why, Ctx} ->
+	    io:format("~s~n", [format_error(Why, Ctx)]),
+	    {error, Why, Ctx}
+    end.
+
+-spec load(file:filename_all(), validators()) ->
+		  {ok, options()} | {error, error_reason()}.
+load(Path, Validators) ->
+    load(Path, Validators, []).
+
+-spec load(file:filename_all(), validators(), [atom()]) ->
+		  {ok, options()} | {error, error_reason()}.
+load(Path, Validators, Required) ->
+    load(Path, Validators, Required, undefined).
+
+-spec load(file:filename_all(), validators(), [atom()],
+	   undefined | fun((options(), options()) -> T)) ->
+		  {ok, options() | T} | {error, error_reason()}.
+load(Path, Validators, Required, Fun) ->
+    load(Path, Validators, Required, Fun,
+	     [replace_macros, include_files]).
+
+-spec load(file:filename_all(), validators(), [atom()],
+	   undefined | fun((options(), options()) -> T),
+	   [parse_option()]) ->
+		  {ok, options() | T} | {error, error_reason()}.
+load(Path0, Validators, Required, Fun, Opts) ->
+    Path = unicode:characters_to_binary(Path0),
+    V = validators(Opts),
+    try
+	Y = read_yaml(prep_path(Path), V, []),
+	{ok, (options(maps:merge(Validators, V), Required, Fun))(Y)}
+    catch _:{?MODULE, Why, Ctx} ->
+	    io:format("~s~n", [format_error(Why, Ctx)]),
+	    {error, Why, Ctx};
+	  ?EX_RULE(Class, Reason, Stacktrace) ->
+	    erase_ctx(),
+	    erlang:raise(Class, Reason, ?EX_STACK(Stacktrace))
     end.
 
 -spec best_match(atom(), [atom()]) -> atom().
@@ -103,7 +146,7 @@ best_match(Pattern, Opts) ->
 
 -spec fail(term(), term()) -> no_return().
 fail(Tag, Reason) ->
-    erlang:error({Tag, Reason, erase_stack()}).
+    erlang:error({Tag, Reason, erase_ctx()}).
 
 %%%===================================================================
 %%% Validators
@@ -544,10 +587,10 @@ either(Atom, Fun) when is_atom(Atom) andalso ?is_validator(Fun) ->
 either(Fun1, Fun2) when ?is_validator(Fun1) andalso
 			?is_validator(Fun2) ->
     fun(Val) ->
-	    Stack = get(?STACK),
+	    Ctx = get_ctx(),
 	    try Fun1(Val)
 	    catch _:_ ->
-		    put(?STACK, Stack),
+		    put_ctx(Ctx),
 		    Fun2(Val)
 	    end
     end.
@@ -590,12 +633,12 @@ options(Validators, Required, Fun) ->
 %%%===================================================================
 %%% Formatters
 %%%===================================================================
--spec format_error(error_reason(), stack()) -> string().
+-spec format_error(error_reason(), ctx()) -> string().
 format_error(Why, []) ->
     format_error(Why);
-format_error(Why, Stack) ->
+format_error(Why, Ctx) ->
     [H|T] = format_error(Why),
-    format_stack(Stack) ++ ": " ++ [string:to_lower(H)|T].
+    format_ctx(Ctx) ++ ": " ++ [string:to_lower(H)|T].
 
 -spec format_error(error_reason()) -> string().
 format_error({bad_atom, Bad}) ->
@@ -666,7 +709,7 @@ format_error({create_file, Why, Path}) ->
     format("Failed to open file '~s' for writing: ~s",
 	   [Path, file:format_error(Why)]);
 format_error({missing_option, Opt}) ->
-    format("Missing required options: ~s", [Opt]);
+    format("Missing required option: ~s", [Opt]);
 format_error({nomatch, Regexp, Bin}) ->
     format("String '~s' doesn't match regular expression: ~s",
 	   [Bin, Regexp]);
@@ -681,10 +724,10 @@ format_error({unknown_option, Opt, _}) ->
 format_error(Bad) ->
     format("Unexpected error reason: ~p", [Bad]).
 
--spec format_stack(stack()) -> string().
-format_stack([_|_] = Stack) ->
+-spec format_ctx(ctx()) -> string().
+format_ctx([_|_] = Ctx) ->
     format("Invalid value of option ~s",
-	   [string:join([atom_to_list(A) || A <- Stack], "->")]).
+	   [string:join([atom_to_list(A) || A <- Ctx], "->")]).
 
 -spec format(iodata(), list()) -> string().
 format(Fmt, Args) ->
@@ -949,20 +992,32 @@ validate_options([], _, Required, Known, Unknown) ->
 validate_options(Bad, _, _, _, _) ->
     fail({bad_map, Bad}).
 
+-spec validate_option(atom(), yaml(), validator(T)) -> T.
 validate_option(Opt, Val, Validator) ->
-    Stack = case get(?STACK) of
-		undefined -> [];
-		S -> S
-	   end,
-    put(?STACK, [Opt|Stack]),
+    Ctx = get_ctx(),
+    put_ctx([Opt|Ctx]),
     Ret = Validator(Val),
-    put(?STACK, Stack),
+    put_ctx(Ctx),
     Ret.
 
--spec erase_stack() -> stack().
-erase_stack() ->
-    case erase(?STACK) of
-	S when is_list(S) -> lists:reverse(S);
+%%%===================================================================
+%%% Mutable context processing
+%%%===================================================================
+-spec get_ctx() -> ctx().
+get_ctx() ->
+    case get(yconf_ctx) of
+	undefined -> [];
+	Opts -> Opts
+    end.
+
+-spec put_ctx(ctx()) -> ctx().
+put_ctx(Opts) ->
+    put(yconf_ctx, Opts).
+
+-spec erase_ctx() -> ctx().
+erase_ctx() ->
+    case erase(yconf_ctx) of
+	Opts when is_list(Opts) -> lists:reverse(Opts);
 	_ -> []
     end.
 
