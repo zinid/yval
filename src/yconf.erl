@@ -19,17 +19,15 @@
 
 %% API
 -export([start/0, stop/0]).
--export([parse/1, parse/2]).
--export([load/2, load/3, load/4, load/5, fail/2]).
+-export([parse/2, parse/3, fail/2]).
 -export([format_error/1, format_error/2]).
--export([best_match/2]).
 %% Simple types
 -export([pos_int/0, pos_int/1, non_neg_int/0, non_neg_int/1]).
 -export([int/0, int/2, number/1, octal/0]).
 -export([binary/0, binary/1]).
 -export([enum/1, bool/0, atom/0, string/0, any/0]).
 %% Complex types
--export([url/0, url_or_file/0]).
+-export([url/0, url/1]).
 -export([file/0, file/1]).
 -export([directory/0, directory/1]).
 -export([ip/0, ipv4/0, ipv6/0, ip_mask/0, port/0]).
@@ -42,7 +40,7 @@
 -export([list_or_single/1, sorted_list_or_single/1]).
 -export([map/1, sorted_map/1, map/2, sorted_map/2]).
 -export([either/2, and_then/2]).
--export([options/1, options/2, options/3]).
+-export([options/1, options/2]).
 
 -define(is_validator(Term), is_function(Term, 1)).
 -ifndef(deprecated_stacktrace).
@@ -57,6 +55,7 @@
 -type timeout_unit() :: millisecond | second | minute | hour | day.
 -type exports() :: [{atom(), arity()} | [{atom(), arity()}]].
 -type options() :: [{atom(), term()}].
+-type macro() :: {binary(), yaml()}.
 -type ctx() :: [atom()].
 -type yaml_val() :: atom() | number() | binary().
 -type yaml_list() :: [yaml()].
@@ -64,12 +63,15 @@
 -type yaml() :: yaml_val() | yaml_list() | yaml_map().
 -type parse_option() :: replace_macros | {replace_macros, boolean()} |
 			include_files | {include_files, boolean()}.
+-type validator_option() :: {required, [atom()]} |
+			    check_unknown |
+			    {check_unknown, boolean()}.
 -type validator() :: fun((yaml()) -> term()).
 -type validator(T) :: fun((yaml()) -> T).
 -type validators() :: #{atom() => validator()}.
 -type error_reason() :: term().
 
--export_type([validator/0]).
+-export_type([validator/0, validator/1, validators/0, error_reason/0]).
 
 %%%===================================================================
 %%% API
@@ -83,66 +85,33 @@ start() ->
 stop() ->
     ok.
 
--spec parse(file:filename_all()) -> {ok, options()} | {error, error_reason()}.
-parse(Path) ->
-    parse(Path, [replace_macros, include_files]).
-
--spec parse(file:filename_all(), [parse_option()]) ->
+-spec parse(file:filename_all(), validators()) ->
 		   {ok, options()} | {error, error_reason()}.
-parse(Path0, Opts) ->
+parse(Path, Validators) ->
+    parse(Path, Validators, [check_unknown]).
+
+-spec parse(file:filename_all(), validators(),
+	    [parse_option() | validator_option()]) ->
+		   {ok, term()} | {error, error_reason()}.
+parse(Path0, Validators, Opts) ->
     Path = unicode:characters_to_binary(Path0),
-    try {ok, read_yaml(prep_path(Path), validators(Opts), [])}
-    catch _:{?MODULE, Why, Ctx} ->
-	    io:format("~s~n", [format_error(Why, Ctx)]),
-	    {error, Why, Ctx}
-    end.
-
--spec load(file:filename_all(), validators()) ->
-		  {ok, options()} | {error, error_reason()}.
-load(Path, Validators) ->
-    load(Path, Validators, []).
-
--spec load(file:filename_all(), validators(), [atom()]) ->
-		  {ok, options()} | {error, error_reason()}.
-load(Path, Validators, Required) ->
-    load(Path, Validators, Required, undefined).
-
--spec load(file:filename_all(), validators(), [atom()],
-	   undefined | fun((options(), options()) -> T)) ->
-		  {ok, options() | T} | {error, error_reason()}.
-load(Path, Validators, Required, Fun) ->
-    load(Path, Validators, Required, Fun,
-	     [replace_macros, include_files]).
-
--spec load(file:filename_all(), validators(), [atom()],
-	   undefined | fun((options(), options()) -> T),
-	   [parse_option()]) ->
-		  {ok, options() | T} | {error, error_reason()}.
-load(Path0, Validators, Required, Fun, Opts) ->
-    Path = unicode:characters_to_binary(Path0),
-    V = validators(Opts),
+    {Opts1, Opts2} = lists:partition(
+		       fun({replace_macros, _}) -> true;
+			  ({include_files, _}) -> true;
+			  (replace_macros) -> true;
+			  (include_files) -> true;
+			  (_) -> false
+		       end, Opts),
     try
-	Y = read_yaml(prep_path(Path), V, []),
-	{ok, (options(maps:merge(Validators, V), Required, Fun))(Y)}
+	Y = read_yaml(prep_path(Path), Opts1, []),
+	Validators1 = maps:merge(Validators, validators(Opts1)),
+	{ok, (options(Validators1, Opts2))(Y)}
     catch _:{?MODULE, Why, Ctx} ->
-	    io:format("~s~n", [format_error(Why, Ctx)]),
 	    {error, Why, Ctx};
 	  ?EX_RULE(Class, Reason, Stacktrace) ->
 	    erase_ctx(),
 	    erlang:raise(Class, Reason, ?EX_STACK(Stacktrace))
     end.
-
--spec best_match(atom(), [atom()]) -> atom().
-best_match(Pattern, []) ->
-    Pattern;
-best_match(Pattern, Opts) ->
-    String = atom_to_list(Pattern),
-    {Ds, _} = lists:mapfoldl(
-                fun(Opt, Cache) ->
-                        {Distance, Cache1} = ld(String, atom_to_list(Opt), Cache),
-                        {{Distance, Opt}, Cache1}
-                end, #{}, Opts),
-    element(2, lists:min(Ds)).
 
 -spec fail(term(), term()) -> no_return().
 fail(Tag, Reason) ->
@@ -156,7 +125,7 @@ enum(List) ->
     fun(Val) ->
 	    Atom = to_atom(Val),
 	    case lists:member(Atom, List) of
-		true -> Val;
+		true -> Atom;
 		false -> fail({bad_enum, List, Atom})
 	    end
     end.
@@ -333,28 +302,25 @@ directory(write) ->
 
 -spec url() -> validator(binary()).
 url() ->
+    url([http, https]).
+
+-spec url([atom()]) -> validator(binary()).
+url(Schemes) ->
     fun(Val) ->
 	    URL = to_binary(Val),
 	    case http_uri:parse(to_string(URL)) of
-		{ok, {Scheme, _, _, _, _, _}} when Scheme /= http, Scheme /= https ->
-		    fail({bad_url, {unsupported_scheme, Scheme}, URL});
 		{ok, {_, _, Host, _, _, _}} when Host == ""; Host == <<"">> ->
 		    fail({bad_url, empty_host, URL});
+		{ok, {Scheme, _, _, _, _, _}} when Schemes /= [] ->
+		    case lists:member(Scheme, Schemes) of
+			true -> URL;
+			false ->
+			    fail({bad_url, {unsupported_scheme, Scheme}, URL})
+		    end;
 		{ok, _} ->
 		    URL;
-		{error, _} ->
-		    fail({bad_url, URL})
-	    end
-    end.
-
--spec url_or_file() -> validator({url | file, binary()}).
-url_or_file() ->
-    fun(Val) ->
-	    Bin = to_binary(Val),
-	    case string:to_lower(binary_to_list(Bin)) of
-		"http:/" ++ _ -> {url, (url())(Bin)};
-		"https:/" ++ _ -> {url, (url())(Bin)};
-		_ -> {file, (file())(Bin)}
+		{error, Why} ->
+		    fail({bad_url, Why, URL})
 	    end
     end.
 
@@ -381,7 +347,7 @@ ipv4() ->
 ipv6() ->
     fun(Val) ->
 	    S = to_string(Val),
-	    case inet:parse_ipv6_address(S) of
+	    case inet:parse_ipv6strict_address(S) of
 		{ok, IP} -> IP;
 		_ -> fail({bad_ipv6, S})
 	    end
@@ -437,7 +403,7 @@ re() ->
 	    Bin = to_binary(Val),
 	    case re:compile(Bin) of
 		{ok, RE} -> RE;
-		_ -> fail({bad_regexp, Bin})
+		{error, Why} -> fail({bad_regexp, Why, Bin})
 	    end
     end.
 
@@ -447,7 +413,7 @@ glob() ->
 	    S = to_string(Val),
 	    case re:compile(sh_to_awk(S)) of
 		{ok, RE} -> RE;
-		_ -> fail({bad_glob, S})
+		{error, Why} -> fail({bad_glob, Why, S})
 	    end
     end.
 
@@ -606,26 +572,14 @@ any() ->
 
 -spec options(validators()) -> validator().
 options(Validators) ->
-    options(Validators, []).
+    options(Validators, [check_unknown]).
 
--spec options(validators(), [atom()]) -> validator().
-options(Validators, Required) ->
-    options(Validators, Required, undefined).
-
--spec options(validators(), [atom()],
-	      undefined | fun((options(), options()) -> term())) -> validator().
-options(Validators, Required, Fun) ->
+-spec options(validators(), [validator_option()]) -> validator().
+options(Validators, Options) ->
     fun(Opts) when is_list(Opts) ->
-	    case validate_options(Opts, Validators, Required) of
-		{Known, [], []} ->
-		    Known;
-		{_, _, [Opt|_]} ->
-		    fail({missing_option, Opt});
-		{_, [{Opt, _}|_], []} when Fun == undefined ->
-		    fail({unknown_option, Opt, maps:keys(Validators)});
-		{Known, Unknown, []} ->
-		    Fun(Known, Unknown)
-	    end;
+	    Required = proplists:get_value(required, Options, []),
+	    CheckUnknown = proplists:get_bool(check_unknown, Options),
+	    validate_options(Opts, Validators, Required, CheckUnknown);
        (Bad) ->
 	    fail({bad_map, Bad})
     end.
@@ -642,19 +596,22 @@ format_error(Why, Ctx) ->
 
 -spec format_error(error_reason()) -> string().
 format_error({bad_atom, Bad}) ->
-    format("Expected string, got ~s", [format_yaml_type(Bad)]);
+    format("Expected string, got ~s instead", [format_yaml_type(Bad)]);
 format_error({bad_binary, Bad}) ->
-    format("Expected string, got ~s", [format_yaml_type(Bad)]);
+    format("Expected string, got ~s instead", [format_yaml_type(Bad)]);
 format_error({bad_bool, Bad}) ->
-    format("Expected boolean, got ~s", [format_yaml_type(Bad)]);
+    format("Expected boolean, got ~s instead", [format_yaml_type(Bad)]);
+format_error({bad_cwd, Why}) ->
+    format("Failed to get current directory name: ~s",
+	   [file:format_error(Why)]);
 format_error({bad_enum, _, Atom}) ->
     format("Unexpected value: ~s", [Atom]);
 format_error({bad_export, {F, A}, Mod}) ->
     format("Module '~s' doesn't export function ~s/~B", [Mod, F, A]);
-format_error({bad_glob, S}) ->
-    format("Invalid glob expression: ~s", [S]);
+format_error({bad_glob, {Reason, _}, _}) ->
+    format("Invalid glob expression: ~s", [Reason]);
 format_error({bad_int, Bad}) ->
-    format("Expected integer, got ~s", [format_yaml_type(Bad)]);
+    format("Expected integer, got ~s instead", [format_yaml_type(Bad)]);
 format_error({bad_int, Min, Max, Bad}) ->
     format("Expected integer between ~B and ~B, got: ~B", [Min, Max, Bad]);
 format_error({bad_ip_mask, S}) ->
@@ -665,28 +622,30 @@ format_error({bad_ipv4, S}) ->
     format("Invalid IPv4 address: ~s", [S]);
 format_error({bad_ipv6, S}) ->
     format("Invalid IPv6 address: ~s", [S]);
+format_error({bad_length, Limit}) ->
+    format("The value must not exceed ~B octets in length", [Limit]);
 format_error({bad_list, Bad}) ->
-    format("Expected list, got ~s", [format_yaml_type(Bad)]);
+    format("Expected list, got ~s instead", [format_yaml_type(Bad)]);
 format_error({bad_map, Bad}) ->
-    format("Expected map, got ~s", [format_yaml_type(Bad)]);
+    format("Expected map, got ~s instead", [format_yaml_type(Bad)]);
 format_error({bad_module, Mod}) ->
-    format("Unknown Erlang module: ~s", [Mod]);
+    format("Unknown module: ~s", [Mod]);
 format_error({bad_non_neg_int, Bad}) ->
     format("Expected non negative integer, got: ~B", [Bad]);
 format_error({bad_non_neg_int, Inf, Bad}) ->
     format("Expected non negative integer or '~s', got: ~B", [Inf, Bad]);
 format_error({bad_number, Bad}) ->
-    format("Expected number, got ~s", [format_yaml_type(Bad)]);
+    format("Expected number, got ~s instead", [format_yaml_type(Bad)]);
 format_error({bad_number, Min, Bad}) ->
-    format("Expected number >= ~B, got: ~p", [Min, Bad]);
+    format("Expected number >= ~p, got: ~p", [Min, Bad]);
 format_error({bad_octal, Bad}) ->
     format("Expected octal, got: ~s", [Bad]);
 format_error({bad_pos_int, Bad}) ->
     format("Expected positive integer, got: ~B", [Bad]);
 format_error({bad_pos_int, Inf, Bad}) ->
     format("Expected positive integer or '~s', got: ~B", [Inf, Bad]);
-format_error({bad_regexp, Bin}) ->
-    format("Invalid regular expression: ~s", [Bin]);
+format_error({bad_regexp, {Reason, _}, _}) ->
+    format("Invalid regular expression: ~s", [Reason]);
 format_error({bad_timeout, Bad}) ->
     format_error({bad_pos_int, Bad});
 format_error({bad_timeout, Inf, Bad}) ->
@@ -695,7 +654,9 @@ format_error({bad_url, empty_host, URL}) ->
     format("Empty hostname in the URL: ~s", [URL]);
 format_error({bad_url, {unsupported_scheme, Scheme}, URL}) ->
     format("Unsupported scheme '~s' in the URL: ~s", [Scheme, URL]);
-format_error({bad_url, URL}) ->
+format_error({bad_url, {no_default_port, _, _}, URL}) ->
+    format("Missing port in the URL: ~s", [URL]);
+format_error({bad_url, _, URL}) ->
     format("Invalid URL: ~s", [URL]);
 format_error({bad_yaml, circular_include, Path}) ->
     format("Circularly included YAML file: ~s", [Path]);
@@ -759,27 +720,21 @@ format_yaml_type([_|_]) ->
 %%%===================================================================
 %%% Initial YAML parsing
 %%%===================================================================
--spec read_yaml(binary(), validators(), [binary()]) -> yaml_map().
-read_yaml(Path, Validators, Paths) ->
+-spec read_yaml(binary(), [parse_option()], [binary()]) -> yaml_map().
+read_yaml(Path, Opts, Paths) ->
     case lists:member(Path, Paths) of
 	true ->
 	    fail({bad_yaml, circular_include, Path});
 	false ->
 	    case fast_yaml:decode_from_file(Path) of
 		{ok, [Y]} ->
-		    V = options(
-			  Validators, [],
-			  fun(Os, Y1) ->
-				  Includes = lists:flatmap(
-					       fun({include_config_file, I}) -> I;
-						  (_) -> []
-					       end, Os),
-				  Macros = lists:flatmap(
-					     fun({define_macro, M}) -> M;
-						(_) -> []
-					     end, Os),
-				  Y2 = Y1 ++ include_files(Includes, Validators, [Path|Paths]),
-				  replace_macros(Y2, Macros)
+		    V = and_then(
+			  options(validators(Opts), Opts),
+			  fun(Y1) ->
+				  {Includes, Macros, Y2} =
+				      partition_includes_and_macros(Y1),
+				  Y3 = Y2 ++ include_files(Includes, Opts, [Path|Paths]),
+				  replace_macros(Y3, Macros)
 			  end),
 		    V(Y);
 		{ok, []} ->
@@ -789,14 +744,25 @@ read_yaml(Path, Validators, Paths) ->
 	    end
     end.
 
--spec replace_macros(yaml_map(), [{binary(), yaml()}]) -> yaml_map().
+-spec partition_includes_and_macros(options()) -> {yaml(), [macro()], yaml_map()}.
+partition_includes_and_macros(Opts) ->
+    lists:foldr(
+      fun({include_config_file, L}, {I, M, Os}) ->
+	      {L ++ I, M, Os};
+	 ({define_macro, L}, {I, M, Os}) ->
+	      {I, L ++ M, Os};
+	 (O, {I, M, Os}) ->
+	      {I, M, [O|Os]}
+      end, {[], [], []}, Opts).
+
+-spec replace_macros(yaml_map(), [macro()]) -> yaml_map().
 replace_macros(Y1, Macros) ->
     lists:foldl(
       fun(Macro, Y2) ->
 	      replace_macro(Y2, Macro)
       end, Y1, lists:flatten(Macros)).
 
--spec replace_macro(yaml(), {binary(), yaml()}) -> yaml().
+-spec replace_macro(yaml(), macro()) -> yaml().
 replace_macro(L, Macro) when is_list(L) ->
     [replace_macro(E, Macro) || E <- L];
 replace_macro({K, V}, Macro) ->
@@ -806,11 +772,11 @@ replace_macro(Name, {Name, Val}) ->
 replace_macro(Val, _) ->
     Val.
 
--spec include_files(yaml(), validators(), [binary()]) -> yaml_map().
-include_files(Includes, Validators, Paths) ->
+-spec include_files(yaml(), [parse_option()], [binary()]) -> yaml_map().
+include_files(Includes, Opts, Paths) ->
     lists:flatmap(
       fun({Path, {Disallow, AllowOnly}}) ->
-	      Y = read_yaml(Path, Validators, Paths),
+	      Y = read_yaml(Path, Opts, Paths),
 	      lists:filter(
 		fun({Opt, _}) ->
 			case AllowOnly of
@@ -821,7 +787,7 @@ include_files(Includes, Validators, Paths) ->
 			end
 		end, Y);
 	 (Path) ->
-	      read_yaml(Path, Validators, Paths)
+	      read_yaml(Path, Opts, Paths)
       end, Includes).
 
 %%%===================================================================
@@ -837,9 +803,11 @@ to_binary(Bad) ->
 
 -spec to_atom(term()) -> atom().
 to_atom(B) when is_binary(B) ->
-    list_to_atom(string:to_lower(binary_to_list(B)));
+    try binary_to_atom(B, utf8)
+    catch _:system_limit -> fail({bad_length, 255})
+    end;
 to_atom(A) when is_atom(A) ->
-    list_to_atom(string:to_lower(atom_to_list(A)));
+    A;
 to_atom(Bad) ->
     fail({bad_atom, Bad}).
 
@@ -847,41 +815,29 @@ to_atom(Bad) ->
 to_string(S) ->
     binary_to_list(to_binary(S)).
 
+-spec to_int(term()) -> integer().
 to_int(I) when is_integer(I) ->
     I;
-to_int(B) when is_binary(B) ->
-    try binary_to_integer(B)
-    catch _:_ -> fail({bad_int, B})
-    end;
 to_int(Bad) ->
     fail({bad_int, Bad}).
 
+-spec to_int(term(), infinity()) -> integer() | infinity().
 to_int(I, _) when is_integer(I) -> I;
 to_int(infinity, Inf) -> Inf;
 to_int(infinite, Inf) -> Inf;
 to_int(unlimited, Inf) -> Inf;
-to_int('∞', Inf) -> Inf;
 to_int(B, Inf) when is_binary(B) ->
-    try binary_to_integer(B)
+    try binary_to_existing_atom(B, latin1) of
+	A -> to_int(A, Inf)
     catch _:_ ->
-	    try binary_to_atom(B, utf8) of
-		A -> to_int(A, Inf)
-	    catch _:_ ->
-		    fail({bad_int, B})
-	    end
+	    fail({bad_int, B})
     end;
 to_int(Bad, _) ->
     fail({bad_int, Bad}).
 
+-spec to_number(term()) -> number().
 to_number(N) when is_number(N) ->
     N;
-to_number(B) when is_binary(B) ->
-    try binary_to_integer(B)
-    catch _:_ ->
-	    try binary_to_float(B)
-	    catch _:_ -> {bad_number, B}
-	    end
-    end;
 to_number(Bad) ->
     fail({bad_number, Bad}).
 
@@ -928,24 +884,6 @@ parse_ip_netmask(S) ->
 	    error
     end.
 
-%% Levenshtein distance
--spec ld(string(), string(), map()) -> {non_neg_integer(), map()}.
-ld([] = S, T, Cache) ->
-    {length(T), maps:put({S, T}, length(T), Cache)};
-ld(S, [] = T, Cache) ->
-    {length(S), maps:put({S, T}, length(S), Cache)};
-ld([X|S], [X|T], Cache) ->
-    ld(S, T, Cache);
-ld([_|ST] = S, [_|TT] = T, Cache) ->
-    try {maps:get({S, T}, Cache), Cache}
-    catch _:{badkey, _} ->
-            {L1, C1} = ld(S, TT, Cache),
-            {L2, C2} = ld(ST, T, C1),
-            {L3, C3} = ld(ST, TT, C2),
-            L = 1 + lists:min([L1, L2, L3]),
-            {L, maps:put({S, T}, L, C3)}
-    end.
-
 -spec fail(error_reason()) -> no_return().
 fail(Reason) ->
     fail(?MODULE, Reason).
@@ -960,35 +898,34 @@ prep_path(Path0) ->
 		    filename:join(
 		      unicode:characters_to_binary(CWD), Path1);
 		{error, Reason} ->
-		    error_logger:warning_msg(
-		      "Failed to get current directory name: ~s",
-		      [file:format_error(Reason)]),
-		    Path1
+		    fail({bad_cwd, Reason})
 	    end;
 	_ ->
 	    Path1
     end.
 
--spec validate_options(list(), validators(), [atom()]) ->
-			      {options(), options(), [atom()]}.
-validate_options(Opts, Validators, Required) ->
-    validate_options(Opts, Validators, Required, [], []).
+-spec validate_options(list(), validators(), [atom()], boolean()) -> options().
+validate_options(Opts, Validators, Required, CheckUnknown) ->
+    validate_options(Opts, Validators, Required, CheckUnknown, []).
 
--spec validate_options(list(), validators(), [atom()], options(), options()) ->
-			      {options(), options(), [atom()]}.
-validate_options([{O, Val}|Opts], Validators, Required, Known, Unknown) ->
+-spec validate_options(list(), validators(), [atom()], boolean(), options()) -> options().
+validate_options([{O, Val}|Opts], Validators, Required, CheckUnknown, Acc) ->
     Opt = to_atom(O),
     try maps:get(Opt, Validators) of
 	Validator ->
 	    Required1 = lists:delete(Opt, Required),
-	    Known1 = [{Opt, validate_option(Opt, Val, Validator)}|Known],
-	    validate_options(Opts, Validators, Required1, Known1, Unknown)
-    catch _:{badkey, _} ->
-	    Unknown1 = [{Opt, Val}|Unknown],
-	    validate_options(Opts, Validators, Required, Known, Unknown1)
+	    Acc1 = [{Opt, validate_option(Opt, Val, Validator)}|Acc],
+	    validate_options(Opts, Validators, Required1, CheckUnknown, Acc1)
+    catch _:{badkey, _} when CheckUnknown ->
+	    fail({unknown_option, Opt, maps:keys(Validators)});
+	  _:{badkey, _} ->
+	    Acc1 = [{Opt, Val}|Acc],
+	    validate_options(Opts, Validators, Required, CheckUnknown, Acc1)
     end;
-validate_options([], _, Required, Known, Unknown) ->
-    {lists:reverse(Known), lists:reverse(Unknown), Required};
+validate_options([], _, [], _, Acc) ->
+    lists:reverse(Acc);
+validate_options([], _, [Required|_], _, _) ->
+    fail({missing_option, Required});
 validate_options(Bad, _, _, _, _) ->
     fail({bad_map, Bad}).
 
