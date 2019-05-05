@@ -54,10 +54,10 @@ define_macro_test() ->
        yconf:parse(File, #{}, [replace_macros])).
 
 include_config_file_test() ->
-    IncludedFile = included_file(["b: 2",
-				  "c: 3"]),
+    IncludedFile = included_file(["a: 1",
+				  "b: 2"]),
     File = file(["include_config_file: " ++ IncludedFile,
-		 "a: 1"]),
+		 "c: 3"]),
     ?assertEqual(
        {ok, [{a, 1}, {b, 2}, {c, 3}]},
        yconf:parse(File, #{}, [include_files])).

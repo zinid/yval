@@ -56,6 +56,7 @@
 -type exports() :: [{atom(), arity()} | [{atom(), arity()}]].
 -type options() :: [{atom(), term()}].
 -type macro() :: {binary(), yaml()}.
+-type includes() :: [{binary(), {[atom()], [atom()]}} | binary()].
 -type ctx() :: [atom()].
 -type yaml_val() :: atom() | number() | binary().
 -type yaml_list() :: [yaml()].
@@ -731,9 +732,8 @@ read_yaml(Path, Opts, Paths) ->
 		    V = and_then(
 			  options(validators(Opts), Opts),
 			  fun(Y1) ->
-				  {Includes, Macros, Y2} =
-				      partition_includes_and_macros(Y1),
-				  Y3 = Y2 ++ include_files(Includes, Opts, [Path|Paths]),
+				  {Macros, Y2} = partition_macros(Y1),
+				  Y3 = include_files(Y2, Opts, [Path|Paths]),
 				  replace_macros(Y3, Macros)
 			  end),
 		    V(Y);
@@ -744,16 +744,14 @@ read_yaml(Path, Opts, Paths) ->
 	    end
     end.
 
--spec partition_includes_and_macros(options()) -> {yaml(), [macro()], yaml_map()}.
-partition_includes_and_macros(Opts) ->
+-spec partition_macros(options()) -> {[macro()], yaml_map()}.
+partition_macros(Opts) ->
     lists:foldr(
-      fun({include_config_file, L}, {I, M, Os}) ->
-	      {L ++ I, M, Os};
-	 ({define_macro, L}, {I, M, Os}) ->
-	      {I, L ++ M, Os};
-	 (O, {I, M, Os}) ->
-	      {I, M, [O|Os]}
-      end, {[], [], []}, Opts).
+      fun({define_macro, M}, {Ms, Os}) ->
+	      {M ++ Ms, Os};
+	 (O, {Ms, Os}) ->
+	      {Ms, [O|Os]}
+      end, {[], []}, Opts).
 
 -spec replace_macros(yaml_map(), [macro()]) -> yaml_map().
 replace_macros(Y1, Macros) ->
@@ -772,11 +770,20 @@ replace_macro(Name, {Name, Val}) ->
 replace_macro(Val, _) ->
     Val.
 
--spec include_files(yaml(), [parse_option()], [binary()]) -> yaml_map().
-include_files(Includes, Opts, Paths) ->
+-spec include_files(options(), [parse_option()], [binary()]) -> yaml_map().
+include_files(List, Opts, Paths) ->
     lists:flatmap(
-      fun({Path, {Disallow, AllowOnly}}) ->
-	      Y = read_yaml(Path, Opts, Paths),
+      fun({include_config_file, Includes}) ->
+	      do_include_files(Includes, Opts, Paths);
+	 (Y) ->
+	      [Y]
+      end, List).
+
+-spec do_include_files(includes(), [parse_option()], [binary()]) -> yaml_map().
+do_include_files(Includes, Opts, Paths) ->
+    lists:flatmap(
+      fun({File, {Disallow, AllowOnly}}) ->
+	      Y = read_yaml(File, Opts, Paths),
 	      lists:filter(
 		fun({Opt, _}) ->
 			case AllowOnly of
@@ -786,8 +793,8 @@ include_files(Includes, Opts, Paths) ->
 				lists:member(Opt, AllowOnly)
 			end
 		end, Y);
-	 (Path) ->
-	      read_yaml(Path, Opts, Paths)
+	 (File) ->
+	      read_yaml(File, Opts, Paths)
       end, Includes).
 
 %%%===================================================================
