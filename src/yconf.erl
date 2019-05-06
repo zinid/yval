@@ -63,7 +63,8 @@
 -type yaml_map() :: [{yaml_val(), yaml()}].
 -type yaml() :: yaml_val() | yaml_list() | yaml_map().
 -type parse_option() :: replace_macros | {replace_macros, boolean()} |
-			include_files | {include_files, boolean()}.
+			include_files | {include_files, boolean()} |
+			plain_as_atom | {plain_as_atom, boolean()}.
 -type validator_option() :: {required, [atom()]} |
 			    check_unknown |
 			    {check_unknown, boolean()}.
@@ -101,6 +102,8 @@ parse(Path0, Validators, Opts) ->
 			  ({include_files, _}) -> true;
 			  (replace_macros) -> true;
 			  (include_files) -> true;
+			  (plain_as_atom) -> true;
+			  ({plain_as_atom, _}) -> true;
 			  (_) -> false
 		       end, Opts),
     try
@@ -713,7 +716,9 @@ format_yaml_type(A) when is_atom(A) ->
 format_yaml_type([{_, _}|_]) ->
     "map";
 format_yaml_type([_|_]) ->
-    "list".
+    "list";
+format_yaml_type(Unexpected) ->
+    lists:flatten(io_lib:format("~p", [Unexpected])).
 
 %%%===================================================================
 %%% Internal functions
@@ -727,13 +732,17 @@ read_yaml(Path, Opts, Paths) ->
 	true ->
 	    fail({bad_yaml, circular_include, Path});
 	false ->
-	    case fast_yaml:decode_from_file(Path) of
+	    PlainAsAtom = proplists:get_bool(plain_as_atom, Opts),
+	    ReplaceMacros = proplists:get_bool(replace_macros, Opts),
+	    IncludeFiles = proplists:get_bool(include_files, Opts),
+	    case fast_yaml:decode_from_file(
+		   Path, [{plain_as_atom, PlainAsAtom}]) of
 		{ok, [Y]} ->
 		    V = and_then(
 			  options(validators(Opts), Opts),
 			  fun(Y1) ->
-				  {Macros, Y2} = partition_macros(Y1),
-				  Y3 = include_files(Y2, Opts, [Path|Paths]),
+				  {Macros, Y2} = partition_macros(Y1, ReplaceMacros),
+				  Y3 = include_files(IncludeFiles, Y2, Opts, [Path|Paths]),
 				  replace_macros(Y3, Macros)
 			  end),
 		    V(Y);
@@ -744,14 +753,16 @@ read_yaml(Path, Opts, Paths) ->
 	    end
     end.
 
--spec partition_macros(options()) -> {[macro()], yaml_map()}.
-partition_macros(Opts) ->
+-spec partition_macros(options(), boolean()) -> {[macro()], yaml_map()}.
+partition_macros(Opts, true) ->
     lists:foldr(
       fun({define_macro, M}, {Ms, Os}) ->
 	      {M ++ Ms, Os};
 	 (O, {Ms, Os}) ->
 	      {Ms, [O|Os]}
-      end, {[], []}, Opts).
+      end, {[], []}, Opts);
+partition_macros(Opts, false) ->
+    {[], Opts}.
 
 -spec replace_macros(yaml_map(), [macro()]) -> yaml_map().
 replace_macros(Y1, Macros) ->
@@ -767,20 +778,27 @@ replace_macro({K, V}, Macro) ->
     {K, replace_macro(V, Macro)};
 replace_macro(Name, {Name, Val}) ->
     Val;
+replace_macro(A, {Name, Val}) when is_atom(A) ->
+    case atom_to_binary(A, utf8) of
+	Name -> Val;
+	_ -> A
+    end;
 replace_macro(Val, _) ->
     Val.
 
--spec include_files(options(), [parse_option()], [binary()]) -> yaml_map().
-include_files(List, Opts, Paths) ->
+-spec include_files(boolean(), options(), [parse_option()], [binary()]) -> yaml_map().
+include_files(true, List, Opts, Paths) ->
     lists:flatmap(
       fun({include_config_file, Includes}) ->
-	      do_include_files(Includes, Opts, Paths);
+	      include_files(Includes, Opts, Paths);
 	 (Y) ->
 	      [Y]
-      end, List).
+      end, List);
+include_files(false, List, _, _) ->
+    List.
 
--spec do_include_files(includes(), [parse_option()], [binary()]) -> yaml_map().
-do_include_files(Includes, Opts, Paths) ->
+-spec include_files(includes(), [parse_option()], [binary()]) -> yaml_map().
+include_files(Includes, Opts, Paths) ->
     lists:flatmap(
       fun({File, {Disallow, AllowOnly}}) ->
 	      Y = read_yaml(File, Opts, Paths),

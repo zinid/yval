@@ -157,7 +157,7 @@ int_test() ->
 bad_int_test() ->
     File = file(["a: bad"]),
     ?checkError(
-       {bad_int, <<"bad">>},
+       {bad_int, _},
        yconf:parse(File, #{a => yconf:int()})).
 
 int_range_test() ->
@@ -253,7 +253,7 @@ number_test() ->
 bad_number_test() ->
     File = file(["a: bad"]),
     ?checkError(
-       {bad_number, <<"bad">>},
+       {bad_number, _},
        yconf:parse(File, #{a => yconf:number(1.0)})),
     File = file(["a: 0.4"]),
     ?checkError(
@@ -306,11 +306,11 @@ bad_atom_test() ->
        yconf:parse(File, #{a => yconf:atom()})).
 
 bad_atom_length_test() ->
-    Bad = lists:duplicate(256, $z),
-    File = file(["a: " ++ Bad]),
-    ?checkError(
-       {bad_length, 255},
-       yconf:parse(File, #{a => yconf:atom()})).
+    Bad = list_to_binary(lists:duplicate(256, $z)),
+    ?assertException(
+       error,
+       {yconf, {bad_length, 255}, _},
+       (yconf:atom())(Bad)).
 
 string_test() ->
     File = file(["a: foo"]),
@@ -636,13 +636,14 @@ sorted_list_or_single_test() ->
 			   b => yconf:sorted_list_or_single(yconf:any())})).
 
 map_1_test() ->
+    F = fun(Key, Val) -> {(yconf:atom())(Key), Val} end,
     File = file(["a: {b: 1, c: 2}"]),
     ?assertEqual(
-       {ok, [{a, [{<<"b">>, 1}, {<<"c">>, 2}]}]},
-       yconf:parse(File, #{a => yconf:map(fun(Key, Val) -> {Key, Val} end)})).
+       {ok, [{a, [{b, 1}, {c, 2}]}]},
+       yconf:parse(File, #{a => yconf:map(F)})).
 
 bad_map_1_test() ->
-    F = fun(Key, Val) -> {Key, Val} end,
+    F = fun(Key, Val) -> {(yconf:atom())(Key), Val} end,
     File = file(["a: 1"]),
     ?checkError(
        {bad_map, 1},
@@ -653,13 +654,14 @@ bad_map_1_test() ->
        yconf:parse(File, #{a => yconf:map(F)})).
 
 sorted_map_1_test() ->
+    F = fun(Key, Val) -> {(yconf:atom())(Key), Val} end,
     File = file(["a: {c: 2, b: 1}"]),
     ?assertEqual(
-       {ok, [{a, [{<<"b">>, 1}, {<<"c">>, 2}]}]},
-       yconf:parse(File, #{a => yconf:sorted_map(fun(Key, Val) -> {Key, Val} end)})).
+       {ok, [{a, [{b, 1}, {c, 2}]}]},
+       yconf:parse(File, #{a => yconf:sorted_map(F)})).
 
 bad_sorted_map_1_test() ->
-    F = fun(Key, Val) -> {Key, Val} end,
+    F = fun(Key, Val) -> {(yconf:atom())(Key), Val} end,
     File = file(["a: 1"]),
     ?checkError(
        {bad_map, 1},
