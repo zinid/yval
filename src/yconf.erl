@@ -100,10 +100,10 @@ parse(Path0, Validators, Opts) ->
     {Opts1, Opts2} = lists:partition(
 		       fun({replace_macros, _}) -> true;
 			  ({include_files, _}) -> true;
+			  ({plain_as_atom, _}) -> true;
 			  (replace_macros) -> true;
 			  (include_files) -> true;
 			  (plain_as_atom) -> true;
-			  ({plain_as_atom, _}) -> true;
 			  (_) -> false
 		       end, Opts),
     try
