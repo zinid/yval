@@ -1,0 +1,16 @@
+language: erlang
+
+otp_release:
+  - 18.0
+  - 21.3
+
+install:
+  - sudo apt-get -qq install libyaml-dev
+
+script:
+  - make
+  - make xref
+  - make test
+
+notifications:
+  email: false
