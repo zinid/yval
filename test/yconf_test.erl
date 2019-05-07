@@ -602,6 +602,43 @@ bad_beam_test() ->
        {bad_export, {foo, 1}, yconf},
        yconf:parse(File, #{a => yconf:beam([{foo, 1}])})).
 
+non_empty_test() ->
+    File = file(["a: [1,2,3]",
+		 "b: 1",
+		 "c: foo",
+		 "d: {e: f}"]),
+    ?assertMatch(
+       {ok, [{a, [1,2,3]}, {b, 1}, {c, foo}, {d, [_]}]},
+       yconf:parse(File, #{a => yconf:non_empty(yconf:list(yconf:int())),
+			   b => yconf:non_empty(yconf:int()),
+			   c => yconf:non_empty(yconf:atom()),
+			   d => yconf:non_empty(yconf:map(yconf:any(), yconf:any()))})).
+
+empty_atom_test() ->
+    File = file(["a: ''"]),
+    ?checkError(
+       empty_atom,
+       yconf:parse(File, #{a => yconf:non_empty(yconf:atom())})).
+
+empty_binary_test() ->
+    File = file(["a: ''"]),
+    ?checkError(
+       empty_binary,
+       yconf:parse(File, #{a => yconf:non_empty(yconf:binary())})).
+
+empty_list_test() ->
+    File = file(["a: []"]),
+    ?checkError(
+       empty_list,
+       yconf:parse(File, #{a => yconf:non_empty(yconf:list(yconf:any()))})).
+
+empty_map_test() ->
+    File = file(["a: {}"]),
+    ?checkError(
+       empty_list,
+       yconf:parse(File, #{a => yconf:non_empty(
+				  yconf:map(yconf:any(), yconf:any()))})).
+
 list_test() ->
     File = file(["a: [1,2,3]"]),
     ?assertMatch(

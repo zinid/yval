@@ -39,7 +39,7 @@
 -export([list/1, sorted_list/1]).
 -export([list_or_single/1, sorted_list_or_single/1]).
 -export([map/1, sorted_map/1, map/2, sorted_map/2]).
--export([either/2, and_then/2]).
+-export([either/2, and_then/2, non_empty/1]).
 -export([options/1, options/2]).
 
 -define(is_validator(Term), is_function(Term, 1)).
@@ -463,6 +463,17 @@ beam(Exports) ->
 	    end
     end.
 
+-spec non_empty(validator(T)) -> validator(T).
+non_empty(Fun) ->
+    fun(Val) ->
+	    case Fun(Val) of
+		'' -> fail(empty_atom);
+		<<"">> -> fail(empty_binary);
+		[] -> fail(empty_list);
+		Ret -> Ret
+	    end
+    end.
+
 -spec list(validator(T)) -> validator([T]).
 list(Fun) when ?is_validator(Fun) ->
     fun(L) when is_list(L) ->
@@ -682,6 +693,12 @@ format_error({create_dir, Why, Path}) ->
 format_error({create_file, Why, Path}) ->
     format("Failed to open file '~s' for writing: ~s",
 	   [Path, file:format_error(Why)]);
+format_error(empty_atom) ->
+    format("Empty string is not allowed", []);
+format_error(empty_binary) ->
+    format("Empty string is not allowed", []);
+format_error(empty_list) ->
+    format("Empty list is not allowed", []);
 format_error({missing_option, Opt}) ->
     format("Missing required option: ~s", [Opt]);
 format_error({nomatch, Regexp, Bin}) ->
