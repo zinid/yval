@@ -19,7 +19,7 @@
 
 %% API
 -export([start/0, stop/0]).
--export([parse/2, parse/3, fail/2]).
+-export([parse/2, parse/3, validate/2, fail/2]).
 -export([format_error/1, format_error/2]).
 %% Simple types
 -export([pos_int/0, pos_int/1, non_neg_int/0, non_neg_int/1]).
@@ -87,12 +87,12 @@ start() ->
 stop() ->
     ok.
 
--spec parse(file:filename_all(), validators()) ->
+-spec parse(file:filename_all(), validator() | validators()) ->
 		   {ok, options()} | {error, error_reason()}.
 parse(Path, Validators) ->
     parse(Path, Validators, [check_unknown]).
 
--spec parse(file:filename_all(), validators(),
+-spec parse(file:filename_all(), validator() | validators(),
 	    [parse_option() | validator_option()]) ->
 		   {ok, term()} | {error, error_reason()}.
 parse(Path0, Validators, Opts) ->
@@ -110,6 +110,15 @@ parse(Path0, Validators, Opts) ->
 	Y = read_yaml(prep_path(Path), Opts1, []),
 	Validators1 = maps:merge(Validators, validators(Opts1)),
 	{ok, (options(Validators1, Opts2))(Y)}
+    catch _:{?MODULE, Why, Ctx} ->
+	    {error, Why, Ctx};
+	  ?EX_RULE(Class, Reason, Stacktrace) ->
+	    erase_ctx(),
+	    erlang:raise(Class, Reason, ?EX_STACK(Stacktrace))
+    end.
+
+validate(Validator, Y) ->
+    try {ok, Validator(Y)}
     catch _:{?MODULE, Why, Ctx} ->
 	    {error, Why, Ctx};
 	  ?EX_RULE(Class, Reason, Stacktrace) ->

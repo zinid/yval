@@ -32,6 +32,14 @@
 start_test() ->
     ?assertEqual(ok, yconf:start()).
 
+validate_test() ->
+    ?assertEqual({ok, 1}, yconf:validate(yconf:any(), 1)).
+
+error_validate_test() ->
+    ?checkError(
+       {bad_int, _},
+       yconf:validate(yconf:int(), foo)).
+
 empty_yaml_test() ->
     File = file(""),
     ?assertEqual({ok, []}, yconf:parse(File, #{})).
@@ -205,14 +213,14 @@ bad_pos_int_infinity_test() ->
     ?checkError(
        {bad_pos_int, infinity, 0},
        yconf:parse(File, #{a => yconf:pos_int(infinity)})),
-    ?assertException(
-       error,
-       {yconf, {bad_int, foo}, _},
-       (yconf:pos_int(infinity))(foo)),
-    ?assertException(
-       error,
-       {yconf, {bad_int, _}, _},
-       (yconf:pos_int(infinity))(list_to_binary(lists:duplicate(256, $z)))).
+    ?checkError(
+       {bad_int, foo},
+       yconf:validate(yconf:pos_int(infinity), foo)),
+    ?checkError(
+       {bad_int, _},
+       yconf:validate(
+	 yconf:pos_int(infinity),
+	 list_to_binary(lists:duplicate(256, $z)))).
 
 non_neg_int_test() ->
     File = file(["a: 0"]),
@@ -307,10 +315,9 @@ bad_atom_test() ->
 
 bad_atom_length_test() ->
     Bad = list_to_binary(lists:duplicate(256, $z)),
-    ?assertException(
-       error,
-       {yconf, {bad_length, 255}, _},
-       (yconf:atom())(Bad)).
+    ?checkError(
+       {bad_length, 255},
+       yconf:validate(yconf:atom(), Bad)).
 
 string_test() ->
     File = file(["a: foo"]),
