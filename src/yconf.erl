@@ -710,7 +710,7 @@ format_error({read_dir, Why, Path}) ->
 format_error({read_file, Why, Path}) ->
     format("Failed to read file '~s': ~s",
 	   [Path, file:format_error(Why)]);
-format_error({unknown_option, Opt, _}) ->
+format_error({unknown_option, _, Opt}) ->
     format("Unknown option: ~s", [Opt]);
 format_error(Bad) ->
     format("Unexpected error reason: ~p", [Bad]).
@@ -970,7 +970,7 @@ validate_options([{O, Val}|Opts], Validators, Required, CheckUnknown, Acc) ->
 	    Acc1 = [{Opt, validate_option(Opt, Val, Validator)}|Acc],
 	    validate_options(Opts, Validators, Required1, CheckUnknown, Acc1)
     catch _:{badkey, _} when CheckUnknown ->
-	    fail({unknown_option, Opt, maps:keys(Validators)});
+	    fail({unknown_option, maps:keys(Validators), Opt});
 	  _:{badkey, _} ->
 	    Acc1 = [{Opt, Val}|Acc],
 	    validate_options(Opts, Validators, Required, CheckUnknown, Acc1)

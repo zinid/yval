@@ -796,7 +796,7 @@ bad_options_test() ->
 unknown_option_test() ->
     File = file(["a: 1"]),
     ?checkError(
-       {unknown_option, a, [define_macro]},
+       {unknown_option, [define_macro], a},
        yconf:parse(File, #{}, [replace_macros, check_unknown])).
 
 missing_option_test() ->
