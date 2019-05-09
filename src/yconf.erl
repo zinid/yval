@@ -637,7 +637,7 @@ format_error({bad_glob, {Reason, _}, _}) ->
 format_error({bad_int, Bad}) ->
     format("Expected integer, got ~s instead", [format_yaml_type(Bad)]);
 format_error({bad_int, Min, Max, Bad}) ->
-    format("Expected integer between ~B and ~B, got: ~B", [Min, Max, Bad]);
+    format("Expected integer from ~B to ~B, got: ~B", [Min, Max, Bad]);
 format_error({bad_ip_mask, S}) ->
     format("Invalid IP address or network mask: ~s", [S]);
 format_error({bad_ip, S}) ->
