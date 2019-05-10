@@ -134,13 +134,15 @@ fail(Tag, Reason) ->
 %%%===================================================================
 %%% Validators
 %%%===================================================================
--spec enum([atom()]) -> validator(atom()).
-enum(List) ->
+-spec enum([atom() | binary()]) -> validator(atom()).
+enum([H|_] = List) when is_atom(H); is_binary(H) ->
     fun(Val) ->
-	    Atom = to_atom(Val),
-	    case lists:member(Atom, List) of
-		true -> Atom;
-		false -> fail({bad_enum, List, Atom})
+	    Member = if is_binary(H) -> to_binary(Val);
+			is_atom(H) -> to_atom(Val)
+		     end,
+	    case lists:member(Member, List) of
+		true -> Member;
+		false -> fail({bad_enum, List, Member})
 	    end
     end.
 
@@ -630,8 +632,8 @@ format_error({bad_bool, Bad}) ->
 format_error({bad_cwd, Why}) ->
     format("Failed to get current directory name: ~s",
 	   [file:format_error(Why)]);
-format_error({bad_enum, _, Atom}) ->
-    format("Unexpected value: ~s", [Atom]);
+format_error({bad_enum, _, Val}) ->
+    format("Unexpected value: ~s", [Val]);
 format_error({bad_export, {F, A}, Mod}) ->
     format("Module '~s' doesn't export function ~s/~B", [Mod, F, A]);
 format_error({bad_glob, {Reason, _}, _}) ->

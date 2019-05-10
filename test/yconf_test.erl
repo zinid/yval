@@ -122,11 +122,17 @@ any_test() ->
        {ok, [{a, 1}]},
        yconf:parse(File, #{a => yconf:any()})).
 
-enum_test() ->
+enum_atom_test() ->
     File = file(["a: foo"]),
     ?assertEqual(
        {ok, [{a, foo}]},
        yconf:parse(File, #{a => yconf:enum([foo, bar])})).
+
+enum_binary_test() ->
+    File = file(["a: foo"]),
+    ?assertEqual(
+       {ok, [{a, <<"foo">>}]},
+       yconf:parse(File, #{a => yconf:enum([<<"foo">>, <<"bar">>])})).
 
 bad_enum_test() ->
     File = file(["a: baz"]),
