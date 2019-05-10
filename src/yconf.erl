@@ -134,7 +134,7 @@ fail(Tag, Reason) ->
 %%%===================================================================
 %%% Validators
 %%%===================================================================
--spec enum([atom() | binary()]) -> validator(atom()).
+-spec enum([atom() | binary()]) -> validator(atom() | binary()).
 enum([H|_] = List) when is_atom(H); is_binary(H) ->
     fun(Val) ->
 	    Member = if is_binary(H) -> to_binary(Val);
