@@ -807,6 +807,22 @@ missing_option_test() ->
 			   b => yconf:any()},
 		   [{required, [b]}])).
 
+disallowed_option_test() ->
+    File = file(["a: 1",
+		 "b: 2"]),
+    ?checkError(
+       {disallowed_option, b},
+       yconf:parse(File, #{a => yconf:int()},
+		   [{disallowed, [b]}])),
+    ?checkError(
+       {disallowed_option, b},
+       yconf:parse(File, #{a => yconf:int(), b => yconf:int()},
+		   [{disallowed, [b]}])),
+    ?checkError(
+       {disallowed_option, b},
+       yconf:parse(File, #{a => yconf:int(), b => yconf:int()},
+		   [{required, [b]}, {disallowed, [b]}])).
+
 bad_cwd_test() ->
     test_format_error({error, {bad_cwd, eaccess}, []}).
 

@@ -66,6 +66,7 @@
 			include_files | {include_files, boolean()} |
 			plain_as_atom | {plain_as_atom, boolean()}.
 -type validator_option() :: {required, [atom()]} |
+			    {disallowed, [atom()]} |
 			    check_unknown |
 			    {check_unknown, boolean()}.
 -type validator() :: fun((yaml()) -> term()).
@@ -602,8 +603,9 @@ options(Validators) ->
 options(Validators, Options) ->
     fun(Opts) when is_list(Opts) ->
 	    Required = proplists:get_value(required, Options, []),
+	    Disallowed = proplists:get_value(disallowed, Options, []),
 	    CheckUnknown = proplists:get_bool(check_unknown, Options),
-	    validate_options(Opts, Validators, Required, CheckUnknown);
+	    validate_options(Opts, Validators, Required, Disallowed, CheckUnknown);
        (Bad) ->
 	    fail({bad_map, Bad})
     end.
@@ -693,6 +695,8 @@ format_error({create_dir, Why, Path}) ->
 format_error({create_file, Why, Path}) ->
     format("Failed to open file '~s' for writing: ~s",
 	   [Path, file:format_error(Why)]);
+format_error({disallowed_option, Opt}) ->
+    format("Option '~s' is not allowed in this context", [Opt]);
 format_error(empty_atom) ->
     format("Empty string is not allowed", []);
 format_error(empty_binary) ->
@@ -957,29 +961,33 @@ prep_path(Path0) ->
 	    Path1
     end.
 
--spec validate_options(list(), validators(), [atom()], boolean()) -> options().
-validate_options(Opts, Validators, Required, CheckUnknown) ->
-    validate_options(Opts, Validators, Required, CheckUnknown, []).
+-spec validate_options(list(), validators(), [atom()], [atom()], boolean()) -> options().
+validate_options(Opts, Validators, Required, Disallowed, CheckUnknown) ->
+    validate_options(Opts, Validators, Required, Disallowed, CheckUnknown, []).
 
--spec validate_options(list(), validators(), [atom()], boolean(), options()) -> options().
-validate_options([{O, Val}|Opts], Validators, Required, CheckUnknown, Acc) ->
+-spec validate_options(list(), validators(), [atom()], [atom()], boolean(), options()) -> options().
+validate_options([{O, Val}|Opts], Validators, Required, Disallowed, CheckUnknown, Acc) ->
     Opt = to_atom(O),
-    try maps:get(Opt, Validators) of
-	Validator ->
-	    Required1 = lists:delete(Opt, Required),
-	    Acc1 = [{Opt, validate_option(Opt, Val, Validator)}|Acc],
-	    validate_options(Opts, Validators, Required1, CheckUnknown, Acc1)
-    catch _:{badkey, _} when CheckUnknown ->
-	    fail({unknown_option, maps:keys(Validators), Opt});
-	  _:{badkey, _} ->
-	    Acc1 = [{Opt, Val}|Acc],
-	    validate_options(Opts, Validators, Required, CheckUnknown, Acc1)
+    case lists:member(Opt, Disallowed) of
+	true -> fail({disallowed_option, Opt});
+	false ->
+	    try maps:get(Opt, Validators) of
+		Validator ->
+		    Required1 = lists:delete(Opt, Required),
+		    Acc1 = [{Opt, validate_option(Opt, Val, Validator)}|Acc],
+		    validate_options(Opts, Validators, Required1, Disallowed, CheckUnknown, Acc1)
+	    catch _:{badkey, _} when CheckUnknown ->
+		    fail({unknown_option, maps:keys(Validators), Opt});
+		  _:{badkey, _} ->
+		    Acc1 = [{Opt, Val}|Acc],
+		    validate_options(Opts, Validators, Required, Disallowed, CheckUnknown, Acc1)
+	    end
     end;
-validate_options([], _, [], _, Acc) ->
+validate_options([], _, [], _, _, Acc) ->
     lists:reverse(Acc);
-validate_options([], _, [Required|_], _, _) ->
+validate_options([], _, [Required|_], _, _, _) ->
     fail({missing_option, Required});
-validate_options(Bad, _, _, _, _) ->
+validate_options(Bad, _, _, _, _, _) ->
     fail({bad_map, Bad}).
 
 -spec validate_option(atom(), yaml(), validator(T)) -> T.
