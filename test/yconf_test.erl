@@ -823,6 +823,14 @@ disallowed_option_test() ->
        yconf:parse(File, #{a => yconf:int(), b => yconf:int()},
 		   [{required, [b]}, {disallowed, [b]}])).
 
+unknown_option_with_disallowed_test() ->
+    File = file(["a: 1",
+		 "c: 2"]),
+    ?checkError(
+       {unknown_option, [a], c},
+       yconf:parse(File, #{a => yconf:int(), b => yconf:int()},
+		   [{disallowed, [b]}, check_unknown])).
+
 bad_cwd_test() ->
     test_format_error({error, {bad_cwd, eaccess}, []}).
 

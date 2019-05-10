@@ -977,7 +977,8 @@ validate_options([{O, Val}|Opts], Validators, Required, Disallowed, CheckUnknown
 		    Acc1 = [{Opt, validate_option(Opt, Val, Validator)}|Acc],
 		    validate_options(Opts, Validators, Required1, Disallowed, CheckUnknown, Acc1)
 	    catch _:{badkey, _} when CheckUnknown ->
-		    fail({unknown_option, maps:keys(Validators), Opt});
+		    Allowed = maps:keys(Validators) -- Disallowed,
+		    fail({unknown_option, Allowed, Opt});
 		  _:{badkey, _} ->
 		    Acc1 = [{Opt, Val}|Acc],
 		    validate_options(Opts, Validators, Required, Disallowed, CheckUnknown, Acc1)
