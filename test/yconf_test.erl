@@ -843,7 +843,11 @@ duplicated_option_test() ->
 		 "a: 3"]),
     ?checkError(
        {duplicated_option, a},
-       yconf:parse(File, #{a => yconf:int(), b => yconf:int()})).
+       yconf:parse(File, #{a => yconf:int(), b => yconf:int()},
+		   [check_dups])),
+    ?assertEqual(
+       {ok, [{a, 1}, {b, 2}, {a, 3}]},
+       yconf:parse(File, #{a => yconf:int(), b => yconf:int()}, [])).
 
 duplicated_unknown_option_test() ->
     File = file(["a: 1",

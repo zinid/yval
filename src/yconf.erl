@@ -602,7 +602,7 @@ options(Validators, Options) ->
 	    Required = proplists:get_value(required, Options, []),
 	    Disallowed = proplists:get_value(disallowed, Options, []),
 	    CheckUnknown = proplists:get_bool(check_unknown, Options),
-	    CheckDups = proplists:get_value(check_dups, Options),
+	    CheckDups = proplists:get_bool(check_dups, Options),
 	    validate_options(Opts, Validators, Required, Disallowed,
 			     CheckUnknown, CheckDups);
        (Bad) ->
@@ -979,7 +979,7 @@ validate_options([{O, Val}|Opts], Validators, Required, Disallowed,
 	false ->
 	    try maps:get(Opt, Validators) of
 		Validator ->
-		    case lists:keymember(Opt, 1, Acc) of
+		    case CheckDups andalso lists:keymember(Opt, 1, Acc) of
 			true -> fail({duplicated_option, Opt});
 			false ->
 			    Required1 = lists:delete(Opt, Required),
