@@ -837,6 +837,22 @@ unknown_option_with_disallowed_test() ->
        yconf:parse(File, #{a => yconf:int(), b => yconf:int()},
 		   [{disallowed, [b]}, check_unknown])).
 
+duplicated_option_test() ->
+    File = file(["a: 1",
+		 "b: 2",
+		 "a: 3"]),
+    ?checkError(
+       {duplicated_option, a},
+       yconf:parse(File, #{a => yconf:int(), b => yconf:int()})).
+
+duplicated_unknown_option_test() ->
+    File = file(["a: 1",
+		 "b: 2",
+		 "b: 3"]),
+    ?assertEqual(
+       {ok, [{a, 1}, {b, 2}, {b, 3}]},
+       yconf:parse(File, #{a => yconf:int()}, [check_dups])).
+
 bad_cwd_test() ->
     test_format_error({error, {bad_cwd, eaccess}, []}).
 

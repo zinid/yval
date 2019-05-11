@@ -67,8 +67,8 @@
 			plain_as_atom | {plain_as_atom, boolean()}.
 -type validator_option() :: {required, [atom()]} |
 			    {disallowed, [atom()]} |
-			    check_unknown |
-			    {check_unknown, boolean()}.
+			    check_unknown | {check_unknown, boolean()} |
+			    check_dups | {check_dups, boolean()}.
 -type validator() :: fun((yaml()) -> term()).
 -type validator(T) :: fun((yaml()) -> T).
 -type validators() :: #{atom() => validator()}.
@@ -91,25 +91,20 @@ stop() ->
 -spec parse(file:filename_all(), validator() | validators()) ->
 		   {ok, options()} | {error, error_reason()}.
 parse(Path, Validators) ->
-    parse(Path, Validators, [check_unknown]).
+    parse(Path, Validators, [check_unknown, check_dups]).
 
 -spec parse(file:filename_all(), validator() | validators(),
 	    [parse_option() | validator_option()]) ->
 		   {ok, term()} | {error, error_reason()}.
 parse(Path0, Validators, Opts) ->
     Path = unicode:characters_to_binary(Path0),
-    {Opts1, Opts2} = lists:partition(
-		       fun({replace_macros, _}) -> true;
-			  ({include_files, _}) -> true;
-			  ({plain_as_atom, _}) -> true;
-			  (replace_macros) -> true;
-			  (include_files) -> true;
-			  (plain_as_atom) -> true;
-			  (_) -> false
-		       end, Opts),
+    {Opts1, Opts2} = proplists:split(
+		       proplists:compact(Opts),
+		       [replace_macros, include_files, plain_as_atom]),
+    Opts3 = lists:flatten(Opts1),
     try
-	Y = read_yaml(prep_path(Path), Opts1, []),
-	Validators1 = maps:merge(Validators, validators(Opts1)),
+	Y = read_yaml(prep_path(Path), Opts3, []),
+	Validators1 = maps:merge(Validators, validators(Opts3)),
 	{ok, (options(Validators1, Opts2))(Y)}
     catch _:{?MODULE, Why, Ctx} ->
 	    {error, Why, Ctx};
@@ -599,7 +594,7 @@ any() ->
 
 -spec options(validators()) -> validator().
 options(Validators) ->
-    options(Validators, [check_unknown]).
+    options(Validators, [check_unknown, check_dups]).
 
 -spec options(validators(), [validator_option()]) -> validator().
 options(Validators, Options) ->
@@ -607,7 +602,9 @@ options(Validators, Options) ->
 	    Required = proplists:get_value(required, Options, []),
 	    Disallowed = proplists:get_value(disallowed, Options, []),
 	    CheckUnknown = proplists:get_bool(check_unknown, Options),
-	    validate_options(Opts, Validators, Required, Disallowed, CheckUnknown);
+	    CheckDups = proplists:get_value(check_dups, Options),
+	    validate_options(Opts, Validators, Required, Disallowed,
+			     CheckUnknown, CheckDups);
        (Bad) ->
 	    fail({bad_map, Bad})
     end.
@@ -699,6 +696,8 @@ format_error({create_file, Why, Path}) ->
 	   [Path, file:format_error(Why)]);
 format_error({disallowed_option, Opt}) ->
     format("Option '~s' is not allowed in this context", [Opt]);
+format_error({duplicated_option, Opt}) ->
+    format("Duplicated option: ~s", [Opt]);
 format_error(empty_atom) ->
     format("Empty string is not allowed", []);
 format_error(empty_binary) ->
@@ -963,34 +962,45 @@ prep_path(Path0) ->
 	    Path1
     end.
 
--spec validate_options(list(), validators(), [atom()], [atom()], boolean()) -> options().
-validate_options(Opts, Validators, Required, Disallowed, CheckUnknown) ->
-    validate_options(Opts, Validators, Required, Disallowed, CheckUnknown, []).
+-spec validate_options(list(), validators(), [atom()],
+		       [atom()], boolean(), boolean()) -> options().
+validate_options(Opts, Validators, Required, Disallowed,
+		 CheckUnknown, CheckDups) ->
+    validate_options(Opts, Validators, Required, Disallowed,
+		     CheckUnknown, CheckDups, []).
 
--spec validate_options(list(), validators(), [atom()], [atom()], boolean(), options()) -> options().
-validate_options([{O, Val}|Opts], Validators, Required, Disallowed, CheckUnknown, Acc) ->
+-spec validate_options(list(), validators(), [atom()], [atom()],
+		       boolean(), boolean(), options()) -> options().
+validate_options([{O, Val}|Opts], Validators, Required, Disallowed,
+		 CheckUnknown, CheckDups, Acc) ->
     Opt = to_atom(O),
     case lists:member(Opt, Disallowed) of
 	true -> fail({disallowed_option, Opt});
 	false ->
 	    try maps:get(Opt, Validators) of
 		Validator ->
-		    Required1 = lists:delete(Opt, Required),
-		    Acc1 = [{Opt, validate_option(Opt, Val, Validator)}|Acc],
-		    validate_options(Opts, Validators, Required1, Disallowed, CheckUnknown, Acc1)
+		    case lists:keymember(Opt, 1, Acc) of
+			true -> fail({duplicated_option, Opt});
+			false ->
+			    Required1 = lists:delete(Opt, Required),
+			    Acc1 = [{Opt, validate_option(Opt, Val, Validator)}|Acc],
+			    validate_options(Opts, Validators, Required1, Disallowed,
+					     CheckUnknown, CheckDups, Acc1)
+		    end
 	    catch _:{badkey, _} when CheckUnknown ->
 		    Allowed = maps:keys(Validators) -- Disallowed,
 		    fail({unknown_option, Allowed, Opt});
 		  _:{badkey, _} ->
 		    Acc1 = [{Opt, Val}|Acc],
-		    validate_options(Opts, Validators, Required, Disallowed, CheckUnknown, Acc1)
+		    validate_options(Opts, Validators, Required, Disallowed,
+				     CheckUnknown, CheckDups, Acc1)
 	    end
     end;
-validate_options([], _, [], _, _, Acc) ->
+validate_options([], _, [], _, _, _, Acc) ->
     lists:reverse(Acc);
-validate_options([], _, [Required|_], _, _, _) ->
+validate_options([], _, [Required|_], _,  _, _, _) ->
     fail({missing_option, Required});
-validate_options(Bad, _, _, _, _, _) ->
+validate_options(Bad, _, _, _, _, _, _) ->
     fail({bad_map, Bad}).
 
 -spec validate_option(atom(), yaml(), validator(T)) -> T.
@@ -1078,9 +1088,9 @@ sh_special_char(_C) -> false.
 -spec validators([parse_option()]) -> validators().
 validators(Opts) when is_list(Opts) ->
     lists:foldl(
-      fun(O, V) when O == replace_macros; O == {replace_macros, true} ->
+      fun(replace_macros, V) ->
 	      maps:put(define_macro, validator(define_macro), V);
-	 (O, V) when O == include_files; O == {include_files, true} ->
+	 (include_files, V) ->
 	      maps:put(include_config_file, validator(include_config_file), V);
 	 (_, V) ->
 	      V
