@@ -146,16 +146,20 @@ bool_test() ->
 		 "c: on",
 		 "d: off",
 		 "e: yes",
-		 "f: no"]),
+		 "f: no",
+		 "g: y",
+		 "h: n"]),
     ?assertEqual(
-       {ok, [{a, true}, {b, false}, {c, true},
-	     {d, false}, {e, true}, {f, false}]},
+       {ok, [{a, true}, {b, false}, {c, true}, {d, false},
+	     {e, true}, {f, false}, {g, true}, {h, false}]},
        yconf:parse(File, #{a => yconf:bool(),
 			   b => yconf:bool(),
 			   c => yconf:bool(),
 			   d => yconf:bool(),
 			   e => yconf:bool(),
-			   f => yconf:bool()})).
+			   f => yconf:bool(),
+			   g => yconf:bool(),
+			   h => yconf:bool()})).
 
 bad_bool_test() ->
     File = file(["a: bad"]),

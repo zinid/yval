@@ -149,6 +149,8 @@ bool() ->
 		off -> false;
 		yes -> true;
 		no -> false;
+		y -> true;
+		n -> false;
 		true -> true;
 		false -> false;
 		Bad -> fail({bad_bool, Bad})
