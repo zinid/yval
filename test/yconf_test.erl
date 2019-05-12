@@ -141,16 +141,21 @@ bad_enum_test() ->
        yconf:parse(File, #{a => yconf:enum([foo, bar])})).
 
 bool_test() ->
-    File = file(["a: false",
-		 "b: true",
+    File = file(["a: true",
+		 "b: false",
 		 "c: on",
-		 "d: off"]),
+		 "d: off",
+		 "e: yes",
+		 "f: no"]),
     ?assertEqual(
-       {ok, [{a, false}, {b, true}, {c, true}, {d, false}]},
+       {ok, [{a, true}, {b, false}, {c, true},
+	     {d, false}, {e, true}, {f, false}]},
        yconf:parse(File, #{a => yconf:bool(),
 			   b => yconf:bool(),
 			   c => yconf:bool(),
-			   d => yconf:bool()})).
+			   d => yconf:bool(),
+			   e => yconf:bool(),
+			   f => yconf:bool()})).
 
 bad_bool_test() ->
     File = file(["a: bad"]),

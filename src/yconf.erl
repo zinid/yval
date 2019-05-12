@@ -147,6 +147,8 @@ bool() ->
 	    case to_atom(Val) of
 		on -> true;
 		off -> false;
+		yes -> true;
+		no -> false;
 		true -> true;
 		false -> false;
 		Bad -> fail({bad_bool, Bad})
