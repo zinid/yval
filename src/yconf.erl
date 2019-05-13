@@ -73,8 +73,10 @@
 -type validator(T) :: fun((yaml()) -> T).
 -type validators() :: #{atom() => validator()}.
 -type error_reason() :: term().
+-type error_return() :: {error, error_reason(), ctx()}.
 
--export_type([validator/0, validator/1, validators/0, error_reason/0]).
+-export_type([validator/0, validator/1, validators/0]).
+-export_type([error_return/0, error_reason/0, ctx/0]).
 
 %%%===================================================================
 %%% API
