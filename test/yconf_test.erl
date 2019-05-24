@@ -816,6 +816,18 @@ bad_options_test() ->
        {bad_map, [1,2,3]},
        yconf:parse(File, #{a => yconf:options(#{})})).
 
+bad_binary_map_option_test() ->
+    File = file(["a: {b: foo}"]),
+    ?checkError(
+       {bad_bool, foo},
+       yconf:parse(File, #{a => yconf:map(yconf:binary(), yconf:bool())})).
+
+bad_integer_map_option_test() ->
+    File = file(["a: {1: foo}"]),
+    ?checkError(
+       {bad_bool, foo},
+       yconf:parse(File, #{a => yconf:map(yconf:int(), yconf:bool())})).
+
 unknown_option_test() ->
     File = file(["a: 1"]),
     ?checkError(

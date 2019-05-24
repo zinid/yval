@@ -57,7 +57,7 @@
 -type options() :: [{atom(), term()}].
 -type macro() :: {binary(), yaml()}.
 -type includes() :: [{binary(), {[atom()], [atom()]}} | binary()].
--type ctx() :: [atom()].
+-type ctx() :: [atom() | binary() | integer()].
 -type yaml_val() :: atom() | number() | binary().
 -type yaml_list() :: [yaml()].
 -type yaml_map() :: [{yaml_val(), yaml()}].
@@ -546,7 +546,12 @@ map(Fun1, Fun2) when ?is_validator(Fun1) andalso
     fun(L) when is_list(L) ->
 	    lists:map(
 	      fun({Key, Val}) ->
-		      {Fun1(Key), Fun2(Val)};
+		      Key1 = Fun1(Key),
+		      Ctx = get_ctx(),
+		      put_ctx([Key1|Ctx]),
+		      Val1 = Fun2(Val),
+		      put_ctx(Ctx),
+		      {Key1, Val1};
 		 (_) ->
 		      fail({bad_map, L})
 	      end, L);
@@ -562,7 +567,12 @@ sorted_map(Fun1, Fun2) when ?is_validator(Fun1) andalso
 		L1 ->
 		    lists:map(
 		      fun({Key, Val}) ->
-			      {Fun1(Key), Fun2(Val)};
+			      Key1 = Fun1(Key),
+			      Ctx = get_ctx(),
+			      put_ctx([Key1|Ctx]),
+			      Val1 = Fun2(Val),
+			      put_ctx(Ctx),
+			      {Key1, Val1};
 			 (_) ->
 			      fail({bad_map, L})
 		      end, L1)
@@ -722,15 +732,26 @@ format_error({read_file, Why, Path}) ->
 	   [Path, file:format_error(Why)]);
 format_error({unknown_option, _, Opt}) ->
     format("Unknown option: ~s", [Opt]);
-format_error(Bad) ->
-    format("Unexpected error reason: ~p", [Bad]).
+format_error(Unexpected) ->
+    format("Unexpected error reason: ~p", [Unexpected]).
 
 -spec format_ctx(ctx()) -> string().
 format_ctx([]) ->
     "Configuration error";
 format_ctx([_|_] = Ctx) ->
     format("Invalid value of option ~s",
-	   [string:join([atom_to_list(A) || A <- Ctx], "->")]).
+	   [string:join(
+	      lists:map(
+		fun(A) when is_atom(A) ->
+			atom_to_list(A);
+		   (B) when is_binary(B) ->
+			"\"" ++ binary_to_list(B) ++ "\"";
+		   (I) when is_integer(I) ->
+			integer_to_list(I);
+		   (Unexpected) ->
+			lists:flatten(io_lib:format("~p", [Unexpected]))
+		end, Ctx),
+	      "->")]).
 
 -spec format(iodata(), list()) -> string().
 format(Fmt, Args) ->
