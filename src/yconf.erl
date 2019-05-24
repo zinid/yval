@@ -609,8 +609,9 @@ options(Validators, Options) ->
 	    Disallowed = proplists:get_value(disallowed, Options, []),
 	    CheckUnknown = proplists:get_bool(check_unknown, Options),
 	    CheckDups = proplists:get_bool(check_dups, Options),
-	    validate_options(Opts, Validators, Required, Disallowed,
-			     CheckUnknown, CheckDups);
+	    DefaultValidator = maps:get('_', Validators, undefined),
+	    validate_options(Opts, Validators, DefaultValidator,
+			     Required, Disallowed, CheckUnknown, CheckDups);
        (Bad) ->
 	    fail({bad_map, Bad})
     end.
@@ -968,45 +969,46 @@ prep_path(Path0) ->
 	    Path1
     end.
 
--spec validate_options(list(), validators(), [atom()],
-		       [atom()], boolean(), boolean()) -> options().
-validate_options(Opts, Validators, Required, Disallowed,
+-spec validate_options(list(), validators(), validator() | undefined,
+		       [atom()], [atom()], boolean(), boolean()) -> options().
+validate_options(Opts, Validators, DefaultValidator, Required, Disallowed,
 		 CheckUnknown, CheckDups) ->
-    validate_options(Opts, Validators, Required, Disallowed,
-		     CheckUnknown, CheckDups, []).
+    validate_options(Opts, Validators, DefaultValidator,
+		     Required, Disallowed, CheckUnknown, CheckDups, []).
 
--spec validate_options(list(), validators(), [atom()], [atom()],
-		       boolean(), boolean(), options()) -> options().
-validate_options([{O, Val}|Opts], Validators, Required, Disallowed,
-		 CheckUnknown, CheckDups, Acc) ->
+-spec validate_options(list(), validators(), validator() | undefined,
+		       [atom()], [atom()], boolean(), boolean(), options()) -> options().
+validate_options([{O, Val}|Opts], Validators, DefaultValidator,
+		 Required, Disallowed, CheckUnknown, CheckDups, Acc) ->
     Opt = to_atom(O),
     case lists:member(Opt, Disallowed) of
 	true -> fail({disallowed_option, Opt});
 	false ->
-	    try maps:get(Opt, Validators) of
+	    case maps:get(Opt, Validators, DefaultValidator) of
+		undefined when CheckUnknown ->
+		    Allowed = maps:keys(Validators) -- Disallowed,
+		    fail({unknown_option, Allowed, Opt});
+		undefined ->
+		    Acc1 = [{Opt, Val}|Acc],
+		    validate_options(Opts, Validators, DefaultValidator,
+				     Required, Disallowed, CheckUnknown, CheckDups, Acc1);
 		Validator ->
 		    case CheckDups andalso lists:keymember(Opt, 1, Acc) of
 			true -> fail({duplicated_option, Opt});
 			false ->
 			    Required1 = lists:delete(Opt, Required),
 			    Acc1 = [{Opt, validate_option(Opt, Val, Validator)}|Acc],
-			    validate_options(Opts, Validators, Required1, Disallowed,
+			    validate_options(Opts, Validators, DefaultValidator,
+					     Required1, Disallowed,
 					     CheckUnknown, CheckDups, Acc1)
 		    end
-	    catch _:{badkey, _} when CheckUnknown ->
-		    Allowed = maps:keys(Validators) -- Disallowed,
-		    fail({unknown_option, Allowed, Opt});
-		  _:{badkey, _} ->
-		    Acc1 = [{Opt, Val}|Acc],
-		    validate_options(Opts, Validators, Required, Disallowed,
-				     CheckUnknown, CheckDups, Acc1)
 	    end
     end;
-validate_options([], _, [], _, _, _, Acc) ->
+validate_options([], _, _, [], _, _, _, Acc) ->
     lists:reverse(Acc);
-validate_options([], _, [Required|_], _,  _, _, _) ->
+validate_options([], _, _, [Required|_], _,  _, _, _) ->
     fail({missing_option, Required});
-validate_options(Bad, _, _, _, _, _, _) ->
+validate_options(Bad, _, _, _, _, _, _, _) ->
     fail({bad_map, Bad}).
 
 -spec validate_option(atom(), yaml(), validator(T)) -> T.

@@ -798,6 +798,14 @@ options_test() ->
 				    c => yconf:bool(),
 				    d => yconf:atom()})})).
 
+options_default_validator_test() ->
+    File = file(["a: {b: 1, c: true}"]),
+    ?assertEqual(
+       {ok, [{a, [{b, 1}, {c, true}]}]},
+       yconf:parse(File, #{a => yconf:options(
+				  #{b => yconf:int(),
+				    '_' => yconf:bool()})})).
+
 bad_options_test() ->
     File = file(["a: 1"]),
     ?checkError(
