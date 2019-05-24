@@ -59,7 +59,7 @@ define_macro_test() ->
 		 "c: C"]),
     ?assertEqual(
        {ok, [{a, 1}, {b, 2}, {c, 3}]},
-       yconf:parse(File, #{}, [replace_macros])).
+       yconf:parse(File, #{'_' => yconf:any()}, [replace_macros])).
 
 include_config_file_test() ->
     IncludedFile = included_file(["a: 1",
@@ -68,7 +68,7 @@ include_config_file_test() ->
 		 "c: 3"]),
     ?assertEqual(
        {ok, [{a, 1}, {b, 2}, {c, 3}]},
-       yconf:parse(File, #{}, [include_files])).
+       yconf:parse(File, #{'_' => yconf:any()}, [include_files])).
 
 include_allow_only_test() ->
     IncludedFile = included_file(["a: 1",
@@ -81,7 +81,7 @@ include_allow_only_test() ->
 		 "   - c"]),
     ?assertEqual(
        {ok, [{a, 1}, {c, 3}]},
-       yconf:parse(File, #{}, [include_files])).
+       yconf:parse(File, #{'_' => yconf:any()}, [include_files])).
 
 include_disallow_test() ->
     IncludedFile = included_file(["a: 1",
@@ -94,7 +94,7 @@ include_disallow_test() ->
 		 "   - c"]),
     ?assertEqual(
        {ok, [{b, 2}]},
-       yconf:parse(File, #{}, [include_files])).
+       yconf:parse(File, #{'_' => yconf:any()}, [include_files])).
 
 nested_macro_test() ->
     IncludedFile = included_file(["define_macro:",
@@ -106,7 +106,7 @@ nested_macro_test() ->
 		 "include_config_file: " ++ IncludedFile]),
     ?assertEqual(
        {ok, [{a, 1}, {b, 2}]},
-       yconf:parse(File, #{}, [replace_macros, include_files])).
+       yconf:parse(File, #{'_' => yconf:any()}, [replace_macros, include_files])).
 
 include_circular_test() ->
     File = file(""),
@@ -820,7 +820,7 @@ unknown_option_test() ->
     File = file(["a: 1"]),
     ?checkError(
        {unknown_option, [define_macro], a},
-       yconf:parse(File, #{}, [replace_macros, check_unknown])).
+       yconf:parse(File, #{}, [replace_macros])).
 
 missing_option_test() ->
     File = file(["a: 1"]),
@@ -852,7 +852,7 @@ unknown_option_with_disallowed_test() ->
     ?checkError(
        {unknown_option, [a], c},
        yconf:parse(File, #{a => yconf:int(), b => yconf:int()},
-		   [{disallowed, [b]}, check_unknown])).
+		   [{disallowed, [b]}])).
 
 duplicated_option_test() ->
     File = file(["a: 1",
@@ -870,9 +870,11 @@ duplicated_unknown_option_test() ->
     File = file(["a: 1",
 		 "b: 2",
 		 "b: 3"]),
-    ?assertEqual(
-       {ok, [{a, 1}, {b, 2}, {b, 3}]},
-       yconf:parse(File, #{a => yconf:int()}, [check_dups])).
+    ?checkError(
+       {duplicated_option, b},
+       yconf:parse(File, #{a => yconf:int(),
+			   '_' => yconf:any()},
+		   [check_dups])).
 
 bad_cwd_test() ->
     test_format_error({error, {bad_cwd, eaccess}, []}).
