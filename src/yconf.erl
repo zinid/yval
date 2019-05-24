@@ -745,7 +745,7 @@ format_ctx([_|_] = Ctx) ->
 		fun(A) when is_atom(A) ->
 			atom_to_list(A);
 		   (B) when is_binary(B) ->
-			"\"" ++ binary_to_list(B) ++ "\"";
+			"'" ++ binary_to_list(B) ++ "'";
 		   (I) when is_integer(I) ->
 			integer_to_list(I);
 		   (Unexpected) ->
