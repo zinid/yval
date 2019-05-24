@@ -798,6 +798,35 @@ options_test() ->
 				    c => yconf:bool(),
 				    d => yconf:atom()})})).
 
+options_return_map_test() ->
+    File = file(["a: 1",
+		 "b: 2"]),
+    ?assertEqual(
+       {ok, #{a => 1, b => 2}},
+       yconf:parse(File, #{a => yconf:any(),
+			   b => yconf:any()},
+		   [{return, map}])).
+
+options_return_dict_test() ->
+    File = file(["a: 1",
+		 "b: 2"]),
+    Ret = yconf:parse(File, #{a => yconf:any(),
+			      b => yconf:any()},
+		      [{return, dict}]),
+    ?assertMatch({ok, _}, Ret),
+    ?assertEqual(
+       [{a, 1}, {b, 2}],
+       lists:keysort(1, dict:to_list(element(2, Ret)))).
+
+options_return_orddict_test() ->
+    File = file(["b: 1",
+		 "a: 2"]),
+    ?assertEqual(
+       {ok, [{a, 2}, {b, 1}]},
+       yconf:parse(File, #{a => yconf:any(),
+			   b => yconf:any()},
+		   [{return, orddict}])).
+
 options_default_validator_test() ->
     File = file(["a: {b: 1, c: true}"]),
     ?assertEqual(

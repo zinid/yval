@@ -54,7 +54,10 @@
 -type infinity() :: infinity | infinite | unlimited.
 -type timeout_unit() :: millisecond | second | minute | hour | day.
 -type exports() :: [{atom(), arity()} | [{atom(), arity()}]].
--type options() :: [{atom(), term()}].
+-type options() :: [{atom(), term()}] |
+		   #{atom() => term()} |
+		   dict:dict(atom(), term()).
+-type options_type() :: list | map | dict | orddict.
 -type macro() :: {binary(), yaml()}.
 -type includes() :: [{binary(), {[atom()], [atom()]}} | binary()].
 -type ctx() :: [atom() | binary() | integer()].
@@ -67,7 +70,8 @@
 			plain_as_atom | {plain_as_atom, boolean()}.
 -type validator_option() :: {required, [atom()]} |
 			    {disallowed, [atom()]} |
-			    check_dups | {check_dups, boolean()}.
+			    check_dups | {check_dups, boolean()} |
+			    {return, list | map}.
 -type validator() :: fun((yaml()) -> term()).
 -type validator(T) :: fun((yaml()) -> T).
 -type validators() :: #{atom() => validator()}.
@@ -617,9 +621,10 @@ options(Validators, Options) ->
 	    Required = proplists:get_value(required, Options, []),
 	    Disallowed = proplists:get_value(disallowed, Options, []),
 	    CheckDups = proplists:get_bool(check_dups, Options),
+	    Return = proplists:get_value(return, Options, list),
 	    DefaultValidator = maps:get('_', Validators, undefined),
 	    validate_options(Opts, Validators, DefaultValidator,
-			     Required, Disallowed, CheckDups);
+			     Required, Disallowed, CheckDups, Return);
        (Bad) ->
 	    fail({bad_map, Bad})
     end.
@@ -990,16 +995,17 @@ prep_path(Path0) ->
     end.
 
 -spec validate_options(list(), validators(), validator() | undefined,
-		       [atom()], [atom()], boolean()) -> options().
+		       [atom()], [atom()], boolean(), options_type()) -> options().
 validate_options(Opts, Validators, DefaultValidator,
-		 Required, Disallowed, CheckDups) ->
+		 Required, Disallowed, CheckDups, Return) ->
     validate_options(Opts, Validators, DefaultValidator,
-		     Required, Disallowed, CheckDups, []).
+		     Required, Disallowed, CheckDups, Return, []).
 
 -spec validate_options(list(), validators(), validator() | undefined,
-		       [atom()], [atom()], boolean(), options()) -> options().
+		       [atom()], [atom()], boolean(),
+		       options_type(), options()) -> options().
 validate_options([{O, Val}|Opts], Validators, DefaultValidator,
-		 Required, Disallowed, CheckDups, Acc) ->
+		 Required, Disallowed, CheckDups, Return, Acc) ->
     Opt = to_atom(O),
     case lists:member(Opt, Disallowed) of
 	true -> fail({disallowed_option, Opt});
@@ -1012,18 +1018,24 @@ validate_options([{O, Val}|Opts], Validators, DefaultValidator,
 		    case CheckDups andalso lists:keymember(Opt, 1, Acc) of
 			true -> fail({duplicated_option, Opt});
 			false ->
-			    Required1 = lists:delete(Opt, Required),
+			    Required1 = proplists:delete(Opt, Required),
 			    Acc1 = [{Opt, validate_option(Opt, Val, Validator)}|Acc],
 			    validate_options(Opts, Validators, DefaultValidator,
-					     Required1, Disallowed, CheckDups, Acc1)
+					     Required1, Disallowed, CheckDups,
+					     Return, Acc1)
 		    end
 	    end
     end;
-validate_options([], _, _, [], _, _, Acc) ->
-    lists:reverse(Acc);
-validate_options([], _, _, [Required|_], _,  _, _) ->
+validate_options([], _, _, [], _, _, Return, Acc) ->
+    case Return of
+	list -> lists:reverse(Acc);
+	map -> maps:from_list(Acc);
+	dict -> dict:from_list(Acc);
+	orddict -> orddict:from_list(Acc)
+    end;
+validate_options([], _, _, [Required|_], _, _, _, _) ->
     fail({missing_option, Required});
-validate_options(Bad, _, _, _, _, _, _) ->
+validate_options(Bad, _, _, _, _, _, _, _) ->
     fail({bad_map, Bad}).
 
 -spec validate_option(atom(), yaml(), validator(T)) -> T.
