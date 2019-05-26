@@ -399,7 +399,7 @@ ip_mask() ->
 port() ->
     int(1, 65535).
 
--spec timeout(timeout_unit()) -> validator(non_neg_integer()).
+-spec timeout(timeout_unit()) -> validator(pos_integer()).
 timeout(Unit) ->
     fun(Val) ->
 	    case to_int(Val) of
@@ -408,7 +408,7 @@ timeout(Unit) ->
 	    end
     end.
 
--spec timeout(timeout_unit(), infinity()) -> validator(non_neg_integer() | infinity()).
+-spec timeout(timeout_unit(), infinity()) -> validator(pos_integer() | infinity()).
 timeout(Unit, Inf) ->
     fun(Val) ->
 	    case to_int(Val, Inf) of
