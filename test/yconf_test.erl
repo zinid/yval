@@ -346,6 +346,22 @@ bad_string_test() ->
        {bad_binary, []},
        yconf:parse(File, #{a => yconf:string()})).
 
+string_re_test() ->
+    File = file(["a: foo",
+		 "b: BAR",
+		 "c: \"123\""]),
+    ?assertEqual(
+       {ok, [{a, "foo"}, {b, "BAR"}, {c, "123"}]},
+       yconf:parse(File, #{a => yconf:string("^[a-z]+$"),
+			   b => yconf:string("^[A-Z]+$"),
+			   c => yconf:string("^[0-9]+$")})).
+
+bad_string_re_test() ->
+    File = file(["a: fooBAR"]),
+    ?checkError(
+       {nomatch, "^[a-z]+$", "fooBAR"},
+       yconf:parse(File, #{a => yconf:string("^[a-z]+$")})).
+
 binary_sep_test() ->
     File = file(["a: b/c//d//"]),
     ?assertEqual(

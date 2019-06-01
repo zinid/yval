@@ -25,7 +25,8 @@
 -export([pos_int/0, pos_int/1, non_neg_int/0, non_neg_int/1]).
 -export([int/0, int/2, number/1, octal/0]).
 -export([binary/0, binary/1]).
--export([enum/1, bool/0, atom/0, string/0, any/0]).
+-export([string/0, string/1]).
+-export([enum/1, bool/0, atom/0, any/0]).
 %% Complex types
 -export([url/0, url/1]).
 -export([file/0, file/1]).
@@ -241,6 +242,16 @@ atom() ->
 -spec string() -> validator(string()).
 string() ->
     fun to_string/1.
+
+-spec string(iodata()) -> validator(string()).
+string(Regexp) when is_list(Regexp) orelse is_binary(Regexp) ->
+    fun(Val) ->
+	    Str = to_string(Val),
+	    case re:run(Str, Regexp) of
+		{match, _} -> Str;
+		nomatch -> fail({nomatch, Regexp, Str})
+	    end
+    end.
 
 -spec binary_sep(iodata()) -> validator([binary()]).
 binary_sep(Sep) ->
@@ -726,9 +737,9 @@ format_error(empty_list) ->
     format("Empty list is not allowed", []);
 format_error({missing_option, Opt}) ->
     format("Missing required option: ~s", [Opt]);
-format_error({nomatch, Regexp, Bin}) ->
+format_error({nomatch, Regexp, Data}) ->
     format("String '~s' doesn't match regular expression: ~s",
-	   [Bin, Regexp]);
+	   [Data, Regexp]);
 format_error({read_dir, Why, Path}) ->
     format("Failed to read directory '~s': ~s",
 	   [Path, file:format_error(Why)]);
