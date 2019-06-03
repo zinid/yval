@@ -72,7 +72,7 @@
 -type validator_option() :: {required, [atom()]} |
 			    {disallowed, [atom()]} |
 			    check_dups | {check_dups, boolean()} |
-			    {return, list | map}.
+			    {return, options_type()}.
 -type validator() :: fun((yaml()) -> term()).
 -type validator(T) :: fun((yaml()) -> T).
 -type validators() :: #{atom() => validator()}.
