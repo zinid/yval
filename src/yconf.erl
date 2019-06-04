@@ -115,7 +115,7 @@ parse(Path0, Validators, Opts) ->
     catch _:{?MODULE, Why, Ctx} ->
 	    {error, Why, Ctx};
 	  ?EX_RULE(Class, Reason, Stacktrace) ->
-	    erase_ctx(),
+	    _ = erase_ctx(),
 	    erlang:raise(Class, Reason, ?EX_STACK(Stacktrace))
     end.
 
@@ -124,7 +124,7 @@ validate(Validator, Y) ->
     catch _:{?MODULE, Why, Ctx} ->
 	    {error, Why, Ctx};
 	  ?EX_RULE(Class, Reason, Stacktrace) ->
-	    erase_ctx(),
+	    _ = erase_ctx(),
 	    erlang:raise(Class, Reason, ?EX_STACK(Stacktrace))
     end.
 
@@ -277,7 +277,7 @@ file(read) ->
 	    Path = prep_path(Val),
 	    case file:open(Path, [read]) of
 		{ok, Fd} ->
-		    file:close(Fd),
+		    _ = file:close(Fd),
 		    Path;
 		{error, Why} ->
 		    fail({read_file, Why, Path})
@@ -290,7 +290,7 @@ file(write) ->
 		ok ->
 		    case file:open(Path, [append]) of
 			{ok, Fd} ->
-			    file:close(Fd),
+			    _ = file:close(Fd),
 			    Path;
 			{error, Why} ->
 			    fail({create_file, Why, Path})
@@ -1067,9 +1067,10 @@ get_ctx() ->
 	Opts -> Opts
     end.
 
--spec put_ctx(ctx()) -> ctx().
+-spec put_ctx(ctx()) -> ok.
 put_ctx(Opts) ->
-    put(yconf_ctx, Opts).
+    put(yconf_ctx, Opts),
+    ok.
 
 -spec erase_ctx() -> ctx().
 erase_ctx() ->

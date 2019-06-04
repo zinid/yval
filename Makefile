@@ -60,7 +60,7 @@ yconf_plt: dialyzer/yconf.plt
 
 dialyzer: erlang_plt deps_plt yconf_plt
 	@dialyzer --plts dialyzer/*.plt --no_check_plt \
-	--get_warnings -o dialyzer/error.log ebin; \
+	--get_warnings -Wunmatched_returns -o dialyzer/error.log ebin; \
 	status=$$? ; if [ $$status -ne 2 ]; then exit $$status; else exit 0; fi
 
 check-syntax:
