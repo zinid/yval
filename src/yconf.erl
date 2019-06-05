@@ -37,8 +37,8 @@
 -export([beam/0, beam/1]).
 -export([timeout/1, timeout/2]).
 %% Composite types
--export([list/1, sorted_list/1]).
--export([list_or_single/1, sorted_list_or_single/1]).
+-export([list/1, list/2]).
+-export([list_or_single/1, list_or_single/2]).
 -export([map/2, map/3]).
 -export([either/2, and_then/2, non_empty/1]).
 -export([options/1, options/2]).
@@ -58,7 +58,9 @@
 -type options() :: [{atom(), term()}] |
 		   #{atom() => term()} |
 		   dict:dict(atom(), term()).
--type options_type() :: list | map | dict | orddict.
+-type return_type() :: list | map | dict | orddict.
+-type unique_opt() :: unique | {unique, boolean()}.
+-type sorted_opt() :: sorted | {sorted, boolean()}.
 -type macro() :: {binary(), yaml()}.
 -type includes() :: [{binary(), {[atom()], [atom()]}} | binary()].
 -type ctx() :: [atom() | binary() | integer()].
@@ -72,7 +74,7 @@
 -type validator_option() :: {required, [atom()]} |
 			    {disallowed, [atom()]} |
 			    unique | {unique, boolean()} |
-			    {return, options_type()}.
+			    {return, return_type()}.
 -type validator() :: fun((yaml()) -> term()).
 -type validator(T) :: fun((yaml()) -> T).
 -type validators() :: #{atom() => validator()}.
@@ -493,63 +495,61 @@ non_empty(Fun) ->
     end.
 
 -spec list(validator(T)) -> validator([T]).
-list(Fun) when ?is_validator(Fun) ->
-    fun(L) when is_list(L) ->
-	    lists:map(Fun, L);
-       (Bad) ->
-	    fail({bad_list, Bad})
-    end.
+list(Fun) ->
+    list(Fun, []).
 
--spec sorted_list(validator(T)) -> validator([T]).
-sorted_list(Fun) when ?is_validator(Fun) ->
+-spec list(validator(T), [unique_opt() | sorted_opt()]) -> validator([T]).
+list(Fun, Opts) when ?is_validator(Fun) ->
     fun(L) when is_list(L) ->
-	    lists:map(Fun, lists:sort(L));
+	    L1 = lists:map(Fun, L),
+	    L2 = unique(L1, Opts),
+	    case proplists:get_bool(sorted, Opts) of
+		true -> lists:sort(L2);
+		false -> L2
+	    end;
        (Bad) ->
 	    fail({bad_list, Bad})
     end.
 
 -spec list_or_single(validator(T)) -> validator([T]).
-list_or_single(Fun) when ?is_validator(Fun) ->
-    fun(L) when is_list(L) ->
-	    lists:map(Fun, L);
-       (V) ->
-	    [Fun(V)]
-    end.
+list_or_single(Fun) ->
+    list_or_single(Fun, []).
 
--spec sorted_list_or_single(validator(T)) -> validator([T]).
-sorted_list_or_single(Fun) when ?is_validator(Fun) ->
+-spec list_or_single(validator(T), [unique_opt() | sorted_opt()]) -> validator([T]).
+list_or_single(Fun, Opts) when ?is_validator(Fun) ->
     fun(L) when is_list(L) ->
-	    lists:map(Fun, lists:sort(L));
+	    (list(Fun, Opts))(L);
        (V) ->
 	    [Fun(V)]
     end.
 
 -spec map(validator(T1), validator(T2)) -> validator([{T1, T2}] | #{T1 => T2}).
-map(Fun1, Fun2) when ?is_validator(Fun1) andalso
-		     ?is_validator(Fun2) ->
+map(Fun1, Fun2) ->
     map(Fun1, Fun2, [{return, list}]).
 
--spec map(validator(T1), validator(T2), [{return, options_type()}]) ->
+-spec map(validator(T1), validator(T2),
+	  [{return, return_type()} | unique_opt()]) ->
 		 validator([{T1, T2}] | #{T1 => T2} | dict:dict(T1, T2)).
 map(Fun1, Fun2, Opts) when ?is_validator(Fun1) andalso
 			   ?is_validator(Fun2) ->
     fun(L) when is_list(L) ->
-	    M = lists:map(
-		  fun({Key, Val}) ->
-			  Key1 = Fun1(Key),
-			  Ctx = get_ctx(),
-			  put_ctx([Key1|Ctx]),
-			  Val1 = Fun2(Val),
-			  put_ctx(Ctx),
-			  {Key1, Val1};
-		     (_) ->
-			  fail({bad_map, L})
-		  end, L),
+	    M1 = lists:map(
+		   fun({Key, Val}) ->
+			   Key1 = Fun1(Key),
+			   Ctx = get_ctx(),
+			   put_ctx([Key1|Ctx]),
+			   Val1 = Fun2(Val),
+			   put_ctx(Ctx),
+			   {Key1, Val1};
+		      (_) ->
+			   fail({bad_map, L})
+		   end, L),
+	    M2 = unique(M1, Opts),
 	    case proplists:get_value(return, Opts, list) of
-		list -> M;
-		map -> maps:from_list(M);
-		orddict -> orddict:from_list(M);
-		dict -> dict:from_list(M)
+		list -> M2;
+		map -> maps:from_list(M2);
+		orddict -> orddict:from_list(M2);
+		dict -> dict:from_list(M2)
 	    end;
        (Bad) ->
 	    fail({bad_map, Bad})
@@ -684,6 +684,10 @@ format_error({create_file, Why, Path}) ->
 	   [Path, file:format_error(Why)]);
 format_error({disallowed_option, Opt}) ->
     format("Option '~s' is not allowed in this context", [Opt]);
+format_error({duplicated_key, Key}) ->
+    format("Duplicated key: ~s", [Key]);
+format_error({duplicated_value, Val}) ->
+    format("Duplicated value: ~s", [format_yaml(Val)]);
 format_error({duplicated_option, Opt}) ->
     format("Duplicated option: ~s", [Opt]);
 format_error(empty_atom) ->
@@ -751,6 +755,23 @@ format_yaml_type([_|_]) ->
     "list";
 format_yaml_type(Unexpected) ->
     lists:flatten(io_lib:format("~p", [Unexpected])).
+
+-spec format_yaml(yaml()) -> iodata().
+format_yaml(I) when is_integer(I) ->
+    integer_to_list(I);
+format_yaml(B) when is_atom(B) ->
+    erlang:atom_to_binary(B, utf8);
+format_yaml(Y) ->
+    S = try iolist_to_binary(fast_yaml:encode(Y))
+	catch _:_ ->
+		try iolist_to_binary(Y)
+		catch _:_ -> list_to_binary(io_lib:format("~p", [Y]))
+		end
+	end,
+    case binary:match(S, <<"\n">>) of
+        nomatch -> S;
+        _ -> [io_lib:nl(), S]
+    end.
 
 %%%===================================================================
 %%% Internal functions
@@ -911,6 +932,31 @@ to_ms(I, Unit) ->
 	day -> timer:hours(I*24)
     end.
 
+-spec unique(list(T), [proplists:property()]) -> list(T).
+unique(L, Opts) ->
+    case proplists:get_bool(unique, Opts) of
+	true -> unique(L);
+	false -> L
+    end.
+
+-spec unique(list(T)) -> list(T).
+unique([{_, _}|_] = Map) ->
+    lists:foldr(
+      fun({K, V}, Acc) ->
+	      case lists:keymember(K, 1, Acc) of
+		  true -> fail({duplicated_key, K});
+		  false -> [{K, V}|Acc]
+	      end
+      end, [], Map);
+unique(L) ->
+    lists:foldr(
+      fun(X, Acc) ->
+	      case lists:member(X, Acc) of
+		  true -> fail({duplicated_value, X});
+		  false -> [X|Acc]
+	      end
+      end, [], L).
+
 -spec parse_ip_netmask(string()) -> {ok, inet:ip4_address(), 0..32} |
 				    {ok, inet:ip6_address(), 0..128} |
 				    error.
@@ -963,7 +1009,7 @@ prep_path(Path0) ->
     end.
 
 -spec validate_options(list(), validators(), validator() | undefined,
-		       [atom()], [atom()], boolean(), options_type()) -> options().
+		       [atom()], [atom()], boolean(), return_type()) -> options().
 validate_options(Opts, Validators, DefaultValidator,
 		 Required, Disallowed, CheckDups, Return) ->
     validate_options(Opts, Validators, DefaultValidator,
@@ -971,7 +1017,7 @@ validate_options(Opts, Validators, DefaultValidator,
 
 -spec validate_options(list(), validators(), validator() | undefined,
 		       [atom()], [atom()], boolean(),
-		       options_type(), options()) -> options().
+		       return_type(), options()) -> options().
 validate_options([{O, Val}|Opts], Validators, DefaultValidator,
 		 Required, Disallowed, CheckDups, Return, Acc) ->
     Opt = to_atom(O),

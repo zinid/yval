@@ -686,13 +686,33 @@ sorted_list_test() ->
     File = file(["a: [3,2,1]"]),
     ?assertMatch(
        {ok, [{a, [1,2,3]}]},
-       yconf:parse(File, #{a => yconf:sorted_list(yconf:any())})).
+       yconf:parse(File, #{a => yconf:list(yconf:any(), [sorted])})).
 
 bad_sorted_list_test() ->
     File = file(["a: 1"]),
     ?checkError(
        {bad_list, 1},
-       yconf:parse(File, #{a => yconf:sorted_list(yconf:any())})).
+       yconf:parse(File, #{a => yconf:list(yconf:any(), [sorted])})).
+
+unique_list_test() ->
+    File = file(["a: [1,2,3]"]),
+    ?assertMatch(
+       {ok, [{a, [1,2,3]}]},
+       yconf:parse(File, #{a => yconf:list(yconf:any(), [unique])})).
+
+bad_unique_list_test() ->
+    File = file(["a: [1,2,1,3]"]),
+    ?checkError(
+       {duplicated_value, 1},
+       yconf:parse(File, #{a => yconf:list(yconf:any(), [unique])})),
+    File = file(["a: [foo, bar, foo]"]),
+    ?checkError(
+       {duplicated_value, foo},
+       yconf:parse(File, #{a => yconf:list(yconf:atom(), [unique])})),
+    File = file(["a: [[1], [2], [1]]"]),
+    ?checkError(
+       {duplicated_value, [1]},
+       yconf:parse(File, #{a => yconf:list(yconf:any(), [unique])})).
 
 list_or_single_test() ->
     File = file(["a: 1",
@@ -707,14 +727,34 @@ sorted_list_or_single_test() ->
 		 "b: [3,2,1]"]),
     ?assertMatch(
        {ok, [{a, [1]}, {b, [1,2,3]}]},
-       yconf:parse(File, #{a => yconf:sorted_list_or_single(yconf:any()),
-			   b => yconf:sorted_list_or_single(yconf:any())})).
+       yconf:parse(File, #{a => yconf:list_or_single(yconf:any(), [sorted]),
+			   b => yconf:list_or_single(yconf:any(), [sorted])})).
+
+unique_list_or_single_test() ->
+    File = file(["a: 1",
+		 "b: [1,2,3]"]),
+    ?assertMatch(
+       {ok, [{a, [1]}, {b, [1,2,3]}]},
+       yconf:parse(File, #{a => yconf:list_or_single(yconf:any(), [unique]),
+			   b => yconf:list_or_single(yconf:any(), [unique])})).
+
+bad_unique_list_or_single_test() ->
+    File = file(["a: 1",
+		 "b: [1,2,1,3]"]),
+    ?checkError(
+       {duplicated_value, 1},
+       yconf:parse(File, #{a => yconf:list_or_single(yconf:any(), [unique]),
+			   b => yconf:list_or_single(yconf:any(), [unique])})).
 
 map_test() ->
     File = file(["a: {c: 2, b: 1}"]),
     ?assertEqual(
        {ok, [{a, [{c, 2}, {b, 1}]}]},
        yconf:parse(File, #{a => yconf:map(yconf:atom(), yconf:any())})),
+    ?assertEqual(
+       {ok, [{a, [{c, 2}, {b, 1}]}]},
+       yconf:parse(File, #{a => yconf:map(yconf:atom(), yconf:any(),
+					  [unique])})),
     ?assertEqual(
        {ok, [{a, [{b, 1}, {c, 2}]}]},
        yconf:parse(File, #{a => yconf:map(yconf:atom(), yconf:any(),
@@ -740,6 +780,13 @@ bad_map_test() ->
     ?checkError(
        {bad_map, [1,2,3]},
        yconf:parse(File, #{a => V})).
+
+bad_unique_map_test() ->
+    File = file(["a: {c: 2, b: 1, c: 3}"]),
+    ?checkError(
+       {duplicated_key, c},
+       yconf:parse(File, #{a => yconf:map(yconf:atom(), yconf:any(),
+					  [unique])})).
 
 either_test() ->
     V = yconf:either(yconf:bool(), yconf:int()),
