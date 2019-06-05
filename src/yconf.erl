@@ -39,7 +39,7 @@
 %% Composite types
 -export([list/1, sorted_list/1]).
 -export([list_or_single/1, sorted_list_or_single/1]).
--export([map/1, sorted_map/1, map/2, sorted_map/2]).
+-export([map/2, map/3]).
 -export([either/2, and_then/2, non_empty/1]).
 -export([options/1, options/2]).
 
@@ -524,75 +524,32 @@ sorted_list_or_single(Fun) when ?is_validator(Fun) ->
 	    [Fun(V)]
     end.
 
--spec map(fun((yaml_val(), yaml()) -> T)) -> validator([T]).
-map(Fun) when is_function(Fun, 2) ->
-    fun(L) when is_list(L) ->
-	    lists:map(
-	      fun({Key, Val}) ->
-		      Fun(Key, Val);
-		 (_) ->
-		      fail({bad_map, L})
-	      end, L);
-       (Bad) ->
-	    fail({bad_map, Bad})
-    end.
-
--spec sorted_map(fun((yaml_val(), yaml()) -> T)) -> validator([T]).
-sorted_map(Fun) when is_function(Fun, 2) ->
-    fun(L) when is_list(L) ->
-	    try lists:keysort(1, L) of
-		L1 ->
-		    lists:map(
-		      fun({Key, Val}) ->
-			      Fun(Key, Val);
-			 (_) ->
-			      fail({bad_map, L})
-		      end, L1)
-	    catch _:badarg ->
-		    fail({bad_map, L})
-	    end;
-       (Bad) ->
-	    fail({bad_map, Bad})
-    end.
-
--spec map(validator(T1), validator(T2)) -> validator([{T1, T2}]).
+-spec map(validator(T1), validator(T2)) -> validator([{T1, T2}] | #{T1 => T2}).
 map(Fun1, Fun2) when ?is_validator(Fun1) andalso
 		     ?is_validator(Fun2) ->
-    fun(L) when is_list(L) ->
-	    lists:map(
-	      fun({Key, Val}) ->
-		      Key1 = Fun1(Key),
-		      Ctx = get_ctx(),
-		      put_ctx([Key1|Ctx]),
-		      Val1 = Fun2(Val),
-		      put_ctx(Ctx),
-		      {Key1, Val1};
-		 (_) ->
-		      fail({bad_map, L})
-	      end, L);
-       (Bad) ->
-	    fail({bad_map, Bad})
-    end.
+    map(Fun1, Fun2, [{return, list}]).
 
--spec sorted_map(validator(T1), validator(T2)) -> validator([{T1, T2}]).
-sorted_map(Fun1, Fun2) when ?is_validator(Fun1) andalso
-			    ?is_validator(Fun2) ->
+-spec map(validator(T1), validator(T2), [{return, options_type()}]) ->
+		 validator([{T1, T2}] | #{T1 => T2} | dict:dict(T1, T2)).
+map(Fun1, Fun2, Opts) when ?is_validator(Fun1) andalso
+			   ?is_validator(Fun2) ->
     fun(L) when is_list(L) ->
-	    try lists:keysort(1, L) of
-		L1 ->
-		    lists:map(
-		      fun({Key, Val}) ->
-			      Key1 = Fun1(Key),
-			      Ctx = get_ctx(),
-			      put_ctx([Key1|Ctx]),
-			      Val1 = Fun2(Val),
-			      put_ctx(Ctx),
-			      {Key1, Val1};
-			 (_) ->
-			      fail({bad_map, L})
-		      end, L1)
-	    catch _:badarg ->
-		    fail({bad_map, L})
+	    M = lists:map(
+		  fun({Key, Val}) ->
+			  Key1 = Fun1(Key),
+			  Ctx = get_ctx(),
+			  put_ctx([Key1|Ctx]),
+			  Val1 = Fun2(Val),
+			  put_ctx(Ctx),
+			  {Key1, Val1};
+		     (_) ->
+			  fail({bad_map, L})
+		  end, L),
+	    case proplists:get_value(return, Opts, list) of
+		list -> M;
+		map -> maps:from_list(M);
+		orddict -> orddict:from_list(M);
+		dict -> dict:from_list(M)
 	    end;
        (Bad) ->
 	    fail({bad_map, Bad})

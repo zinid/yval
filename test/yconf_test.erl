@@ -710,67 +710,28 @@ sorted_list_or_single_test() ->
        yconf:parse(File, #{a => yconf:sorted_list_or_single(yconf:any()),
 			   b => yconf:sorted_list_or_single(yconf:any())})).
 
-map_1_test() ->
-    F = fun(Key, Val) -> {(yconf:atom())(Key), Val} end,
-    File = file(["a: {b: 1, c: 2}"]),
-    ?assertEqual(
-       {ok, [{a, [{b, 1}, {c, 2}]}]},
-       yconf:parse(File, #{a => yconf:map(F)})).
-
-bad_map_1_test() ->
-    F = fun(Key, Val) -> {(yconf:atom())(Key), Val} end,
-    File = file(["a: 1"]),
-    ?checkError(
-       {bad_map, 1},
-       yconf:parse(File, #{a => yconf:map(F)})),
-    File = file(["a: [1,2,3]"]),
-    ?checkError(
-       {bad_map, [1,2,3]},
-       yconf:parse(File, #{a => yconf:map(F)})).
-
-sorted_map_1_test() ->
-    F = fun(Key, Val) -> {(yconf:atom())(Key), Val} end,
+map_test() ->
     File = file(["a: {c: 2, b: 1}"]),
     ?assertEqual(
-       {ok, [{a, [{b, 1}, {c, 2}]}]},
-       yconf:parse(File, #{a => yconf:sorted_map(F)})).
-
-bad_sorted_map_1_test() ->
-    F = fun(Key, Val) -> {(yconf:atom())(Key), Val} end,
-    File = file(["a: 1"]),
-    ?checkError(
-       {bad_map, 1},
-       yconf:parse(File, #{a => yconf:sorted_map(F)})),
-    File = file(["a: [1,2,3]"]),
-    ?checkError(
-       {bad_map, [1,2,3]},
-       yconf:parse(File, #{a => yconf:sorted_map(F)})).
-
-map_2_test() ->
-    File = file(["a: {b: 1, c: 2}"]),
+       {ok, [{a, [{c, 2}, {b, 1}]}]},
+       yconf:parse(File, #{a => yconf:map(yconf:atom(), yconf:any())})),
     ?assertEqual(
        {ok, [{a, [{b, 1}, {c, 2}]}]},
-       yconf:parse(File, #{a => yconf:map(yconf:atom(), yconf:any())})).
+       yconf:parse(File, #{a => yconf:map(yconf:atom(), yconf:any(),
+					  [{return, orddict}])})),
+    ?assertEqual(
+       {ok, [{a, #{b => 1, c => 2}}]},
+       yconf:parse(File, #{a => yconf:map(yconf:atom(), yconf:any(),
+					  [{return, map}])})),
+    Ret = yconf:parse(File, #{a => yconf:map(yconf:atom(), yconf:any(),
+					     [{return, dict}])}),
+    ?assertMatch({ok, [{a, _}]}, Ret),
+    ?assertEqual(
+       [{b, 1}, {c, 2}],
+       lists:keysort(1, dict:to_list(element(2, hd(element(2, Ret)))))).
 
-bad_map_2_test() ->
+bad_map_test() ->
     V = yconf:map(yconf:atom(), yconf:any()),
-    File = file(["a: 1"]),
-    ?checkError(
-       {bad_map, 1},
-       yconf:parse(File, #{a => V})),
-    File = file(["a: [1,2,3]"]),
-    ?checkError(
-       {bad_map, [1,2,3]},
-       yconf:parse(File, #{a => V})).
-
-sorted_map_2_test() ->
-    File = file(["a: {c: 2, b: 1}"]),
-    ?assertEqual(
-       {ok, [{a, [{b, 1}, {c, 2}]}]},
-       yconf:parse(File, #{a => yconf:sorted_map(yconf:atom(), yconf:any())})).
-
-bad_sorted_map_2_test() ->
-    V = yconf:sorted_map(yconf:atom(), yconf:any()),
     File = file(["a: 1"]),
     ?checkError(
        {bad_map, 1},
