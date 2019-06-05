@@ -879,7 +879,7 @@ duplicated_option_test() ->
     ?checkError(
        {duplicated_option, a},
        yconf:parse(File, #{a => yconf:int(), b => yconf:int()},
-		   [check_dups])),
+		   [unique])),
     ?assertEqual(
        {ok, [{a, 1}, {b, 2}, {a, 3}]},
        yconf:parse(File, #{a => yconf:int(), b => yconf:int()}, [])).
@@ -892,7 +892,7 @@ duplicated_unknown_option_test() ->
        {duplicated_option, b},
        yconf:parse(File, #{a => yconf:int(),
 			   '_' => yconf:any()},
-		   [check_dups])).
+		   [unique])).
 
 bad_cwd_test() ->
     test_format_error({error, {bad_cwd, eaccess}, []}).

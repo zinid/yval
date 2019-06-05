@@ -71,7 +71,7 @@
 			plain_as_atom | {plain_as_atom, boolean()}.
 -type validator_option() :: {required, [atom()]} |
 			    {disallowed, [atom()]} |
-			    check_dups | {check_dups, boolean()} |
+			    unique | {unique, boolean()} |
 			    {return, options_type()}.
 -type validator() :: fun((yaml()) -> term()).
 -type validator(T) :: fun((yaml()) -> T).
@@ -97,7 +97,7 @@ stop() ->
 -spec parse(file:filename_all(), validator() | validators()) ->
 		   {ok, options()} | {error, error_reason()}.
 parse(Path, Validators) ->
-    parse(Path, Validators, [check_dups]).
+    parse(Path, Validators, [unique]).
 
 -spec parse(file:filename_all(), validator() | validators(),
 	    [parse_option() | validator_option()]) ->
@@ -581,14 +581,14 @@ any() ->
 
 -spec options(validators()) -> validator().
 options(Validators) ->
-    options(Validators, [check_dups]).
+    options(Validators, [unique]).
 
 -spec options(validators(), [validator_option()]) -> validator().
 options(Validators, Options) ->
     fun(Opts) when is_list(Opts) ->
 	    Required = proplists:get_value(required, Options, []),
 	    Disallowed = proplists:get_value(disallowed, Options, []),
-	    CheckDups = proplists:get_bool(check_dups, Options),
+	    CheckDups = proplists:get_bool(unique, Options),
 	    Return = proplists:get_value(return, Options, list),
 	    DefaultValidator = maps:get('_', Validators, undefined),
 	    validate_options(Opts, Validators, DefaultValidator,
