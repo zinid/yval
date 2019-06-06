@@ -97,13 +97,13 @@ stop() ->
     ok.
 
 -spec parse(file:filename_all(), validator() | validators()) ->
-		   {ok, options()} | {error, error_reason()}.
+		   {ok, options()} | error_return().
 parse(Path, Validators) ->
     parse(Path, Validators, [unique]).
 
 -spec parse(file:filename_all(), validator() | validators(),
 	    [parse_option() | validator_option()]) ->
-		   {ok, term()} | {error, error_reason()}.
+		   {ok, options()} | error_return().
 parse(Path0, Validators, Opts) ->
     Path = unicode:characters_to_binary(Path0),
     {Opts1, Opts2} = proplists:split(
