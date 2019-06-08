@@ -537,7 +537,7 @@ map(Fun1, Fun2, Opts) when ?is_validator(Fun1) andalso
 		   fun({Key, Val}) ->
 			   Key1 = Fun1(Key),
 			   Ctx = get_ctx(),
-			   put_ctx([Key1|Ctx]),
+			   put_ctx([Key|Ctx]),
 			   Val1 = Fun2(Val),
 			   put_ctx(Ctx),
 			   {Key1, Val1};
