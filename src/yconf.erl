@@ -537,7 +537,11 @@ map(Fun1, Fun2, Opts) when ?is_validator(Fun1) andalso
 		   fun({Key, Val}) ->
 			   Key1 = Fun1(Key),
 			   Ctx = get_ctx(),
-			   put_ctx([Key1|Ctx]),
+			   if is_binary(Key1); is_atom(Key1); is_number(Key1) ->
+				   put_ctx([Key1|Ctx]);
+			      true ->
+				   put_ctx([Key|Ctx])
+			   end,
 			   Val1 = Fun2(Val),
 			   put_ctx(Ctx),
 			   {Key1, Val1};
