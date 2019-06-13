@@ -106,7 +106,7 @@ duplicated_macro_test() ->
        {duplicated_macro, <<"MACRO">>},
        yconf:parse(File, #{'_' => yconf:any()}, [replace_macros])).
 
-nested_macro_test() ->
+included_macro_test() ->
     IncludedFile = included_file(["define_macro:",
 				  " MACRO: 1",
 				  "b: MACRO"]),
@@ -116,6 +116,18 @@ nested_macro_test() ->
        {ok, [{a, 1}, {b, 1}]},
        yconf:parse(File, #{'_' => yconf:any()}, [replace_macros, include_files])).
 
+nested_macro_test() ->
+    File = file(["define_macro:",
+		 " FOO: BAR",
+		 " BAR: BAZ",
+		 " BAZ: baz",
+		 "foo: FOO",
+		 "bar: FOO",
+		 "baz: FOO"]),
+    ?assertEqual(
+       {ok, [{foo, <<"baz">>}, {bar, <<"baz">>}, {baz, <<"baz">>}]},
+       yconf:parse(File, #{'_' => yconf:any()}, [replace_macros])).
+
 include_circular_test() ->
     File = file(""),
     IncludedFile = included_file(["include_config_file: " ++ File]),
@@ -123,6 +135,15 @@ include_circular_test() ->
     ?checkError(
        {bad_yaml, circular_include, _},
        yconf:parse(File, #{}, [include_files])).
+
+macro_circular_test() ->
+    File = file(["define_macro:",
+		 " FOO: BAR",
+		 " BAR: BAZ",
+		 " BAZ: FOO"]),
+    ?checkError(
+       {circular_macro, <<"FOO">>},
+       yconf:parse(File, #{}, [replace_macros])).
 
 any_test() ->
     File = file(["a: 1"]),

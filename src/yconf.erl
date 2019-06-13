@@ -674,6 +674,8 @@ format_error({bad_url, _, URL}) ->
     format("Invalid URL: ~s", [URL]);
 format_error({bad_yaml, circular_include, Path}) ->
     format("Circularly included YAML file: ~s", [Path]);
+format_error({circular_macro, Name}) ->
+    format("Circularly defined macro: ~s", [Name]);
 format_error({bad_yaml, Why, Path}) ->
     format("Failed to read YAML file '~s': ~s",
 	   [Path, fast_yaml:format_error(Why)]);
@@ -828,10 +830,8 @@ replace_macros(Y, Opts) ->
 		  fun(Y1) ->
 			  {Macros1, Y2} = partition_macros(Y1),
 			  Macros2 = check_duplicated_macros(Macros1),
-			  lists:foldr(
-			    fun(Macro, Y3) ->
-				    replace_macro(Y3, Macro)
-			    end, Y2, Macros2)
+			  Macros3 = replace_macros(Macros2, Macros2, []),
+			  replace_macros(Y2, Macros3, [])
 		  end),
 	    V(Y);
 	false ->
@@ -848,19 +848,32 @@ check_duplicated_macros(Macros) ->
 	      end
       end, [], Macros).
 
--spec replace_macro(yaml(), macro()) -> yaml().
-replace_macro(L, Macro) when is_list(L) ->
-    [replace_macro(E, Macro) || E <- L];
-replace_macro({K, V}, Macro) ->
-    {K, replace_macro(V, Macro)};
-replace_macro(Name, {Name, Val}) ->
-    Val;
-replace_macro(A, {Name, Val}) when is_atom(A) ->
-    case atom_to_binary(A, utf8) of
-	Name -> Val;
-	_ -> A
+-spec replace_macros(yaml_map(), [macro()], [binary()]) -> yaml_map().
+replace_macros(Y, Macros, Path) ->
+    lists:foldr(
+      fun(Macro, Y1) ->
+	      replace_macro(Y1, Macro, Macros, Path)
+      end, Y, Macros).
+
+-spec replace_macro(yaml(), macro(), [macro()], [binary()]) -> yaml().
+replace_macro(L, Macro, Macros, Path) when is_list(L) ->
+    [replace_macro(E, Macro, Macros, Path) || E <- L];
+replace_macro({K, V}, Macro, Macros, Path) ->
+    {K, replace_macro(V, Macro, Macros, Path)};
+replace_macro(V, {Name, Val}, Macros, Path) ->
+    V1 = if is_atom(V) -> atom_to_binary(V, utf8);
+	    true -> V
+	 end,
+    case V1 of
+	Name ->
+	    case lists:member(Name, Path) of
+		true -> fail({circular_macro, Name});
+		false -> replace_macros(Val, Macros, [Name|Path])
+	    end;
+	_ ->
+	    V
     end;
-replace_macro(Val, _) ->
+replace_macro(Val, _, _, _) ->
     Val.
 
 -spec include_files(options(), [parse_option()], [binary()]) -> yaml_map().
