@@ -96,16 +96,24 @@ include_disallow_test() ->
        {ok, [{b, 2}]},
        yconf:parse(File, #{'_' => yconf:any()}, [include_files])).
 
-nested_macro_test() ->
-    IncludedFile = included_file(["define_macro:",
-				  " MACRO: 2",
-				  "b: MACRO"]),
+duplicated_macro_test() ->
     File = file(["define_macro:",
 		 " MACRO: 1",
-		 "a: MACRO",
+		 "define_macro:",
+		 " MACRO: 2",
+		 "a: MACRO"]),
+    ?checkError(
+       {duplicated_macro, <<"MACRO">>},
+       yconf:parse(File, #{'_' => yconf:any()}, [replace_macros])).
+
+nested_macro_test() ->
+    IncludedFile = included_file(["define_macro:",
+				  " MACRO: 1",
+				  "b: MACRO"]),
+    File = file(["a: MACRO",
 		 "include_config_file: " ++ IncludedFile]),
     ?assertEqual(
-       {ok, [{a, 1}, {b, 2}]},
+       {ok, [{a, 1}, {b, 1}]},
        yconf:parse(File, #{'_' => yconf:any()}, [replace_macros, include_files])).
 
 include_circular_test() ->

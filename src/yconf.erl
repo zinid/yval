@@ -111,9 +111,10 @@ parse(Path0, Validators, Opts) ->
 		       [replace_macros, include_files, plain_as_atom]),
     Opts3 = lists:flatten(Opts1),
     try
-	Y = read_yaml(prep_path(Path), Opts3, []),
+	Y1 = read_yaml(prep_path(Path), Opts3, []),
+	Y2 = replace_macros(Y1, Opts3),
 	Validators1 = maps:merge(Validators, validators(Opts3)),
-	{ok, (options(Validators1, Opts2))(Y)}
+	{ok, (options(Validators1, Opts2))(Y2)}
     catch _:{?MODULE, Why, Ctx} ->
 	    {error, Why, Ctx};
 	  ?EX_RULE(Class, Reason, Stacktrace) ->
@@ -690,6 +691,8 @@ format_error({duplicated_value, Val}) ->
     format("Duplicated value: ~s", [format_yaml(Val)]);
 format_error({duplicated_option, Opt}) ->
     format("Duplicated option: ~s", [Opt]);
+format_error({duplicated_macro, Name}) ->
+    format("Duplicated macro: ~s", [Name]);
 format_error(empty_atom) ->
     format("Empty string is not allowed", []);
 format_error(empty_binary) ->
@@ -786,20 +789,19 @@ read_yaml(Path, Opts, Paths) ->
 	    fail({bad_yaml, circular_include, Path});
 	false ->
 	    PlainAsAtom = proplists:get_bool(plain_as_atom, Opts),
-	    ReplaceMacros = proplists:get_bool(replace_macros, Opts),
 	    IncludeFiles = proplists:get_bool(include_files, Opts),
 	    case fast_yaml:decode_from_file(
 		   Path, [{plain_as_atom, PlainAsAtom}]) of
-		{ok, [Y]} ->
-		    Validators = validators(Opts),
+		{ok, [Y]} when IncludeFiles ->
+		    Validators = validators([include_files]),
 		    V = and_then(
-			  options(Validators#{'_' => any()}, Opts),
+			  options(Validators#{'_' => any()}, []),
 			  fun(Y1) ->
-				  {Macros, Y2} = partition_macros(Y1, ReplaceMacros),
-				  Y3 = include_files(IncludeFiles, Y2, Opts, [Path|Paths]),
-				  replace_macros(Y3, Macros)
+				  include_files(Y1, Opts, [Path|Paths])
 			  end),
 		    V(Y);
+		{ok, [Y]} ->
+		    Y;
 		{ok, []} ->
 		    [];
 		{error, Why} ->
@@ -807,23 +809,44 @@ read_yaml(Path, Opts, Paths) ->
 	    end
     end.
 
--spec partition_macros(options(), boolean()) -> {[macro()], yaml_map()}.
-partition_macros(Opts, true) ->
+-spec partition_macros(options()) -> {[macro()], yaml_map()}.
+partition_macros(Opts) ->
     lists:foldr(
       fun({define_macro, M}, {Ms, Os}) ->
 	      {M ++ Ms, Os};
 	 (O, {Ms, Os}) ->
 	      {Ms, [O|Os]}
-      end, {[], []}, Opts);
-partition_macros(Opts, false) ->
-    {[], Opts}.
+      end, {[], []}, Opts).
 
--spec replace_macros(yaml_map(), [macro()]) -> yaml_map().
-replace_macros(Y1, Macros) ->
+-spec replace_macros(yaml_map(), [parse_option()]) -> yaml_map().
+replace_macros(Y, Opts) ->
+    case proplists:get_bool(replace_macros, Opts) of
+	true ->
+	    Validators = validators([replace_macros]),
+	    V = and_then(
+		  options(Validators#{'_' => any()}, []),
+		  fun(Y1) ->
+			  {Macros1, Y2} = partition_macros(Y1),
+			  Macros2 = check_duplicated_macros(Macros1),
+			  lists:foldr(
+			    fun(Macro, Y3) ->
+				    replace_macro(Y3, Macro)
+			    end, Y2, Macros2)
+		  end),
+	    V(Y);
+	false ->
+	    Y
+    end.
+
+-spec check_duplicated_macros([macro()]) -> [macro()].
+check_duplicated_macros(Macros) ->
     lists:foldl(
-      fun(Macro, Y2) ->
-	      replace_macro(Y2, Macro)
-      end, Y1, lists:flatten(Macros)).
+      fun({Name, Val}, Ms) ->
+	      case lists:keymember(Name, 1, Ms) of
+		  true -> fail({duplicated_macro, Name});
+		  false -> [{Name, Val}|Ms]
+	      end
+      end, [], Macros).
 
 -spec replace_macro(yaml(), macro()) -> yaml().
 replace_macro(L, Macro) when is_list(L) ->
@@ -840,19 +863,17 @@ replace_macro(A, {Name, Val}) when is_atom(A) ->
 replace_macro(Val, _) ->
     Val.
 
--spec include_files(boolean(), options(), [parse_option()], [binary()]) -> yaml_map().
-include_files(true, List, Opts, Paths) ->
+-spec include_files(options(), [parse_option()], [binary()]) -> yaml_map().
+include_files(List, Opts, Paths) ->
     lists:flatmap(
       fun({include_config_file, Includes}) ->
-	      include_files(Includes, Opts, Paths);
+	      read_include_files(Includes, Opts, Paths);
 	 (Y) ->
 	      [Y]
-      end, List);
-include_files(false, List, _, _) ->
-    List.
+      end, List).
 
--spec include_files(includes(), [parse_option()], [binary()]) -> yaml_map().
-include_files(Includes, Opts, Paths) ->
+-spec read_include_files(includes(), [parse_option()], [binary()]) -> yaml_map().
+read_include_files(Includes, Opts, Paths) ->
     lists:flatmap(
       fun({File, {Disallow, AllowOnly}}) ->
 	      Y = read_yaml(File, Opts, Paths),
