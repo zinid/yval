@@ -356,6 +356,8 @@ url(Schemes) ->
 	    case http_uri:parse(to_string(URL)) of
 		{ok, {_, _, Host, _, _, _}} when Host == ""; Host == <<"">> ->
 		    fail({bad_url, empty_host, URL});
+		{ok, {_, _, _, Port, _, _}} when Port =< 0 orelse Port >= 65536 ->
+		    fail({bad_url, bad_port, URL});
 		{ok, {Scheme, _, _, _, _, _}} when Schemes /= [] ->
 		    case lists:member(Scheme, Schemes) of
 			true -> URL;
@@ -681,6 +683,8 @@ format_error({bad_url, {unsupported_scheme, Scheme}, URL}) ->
     format("Unsupported scheme '~s' in the URL: ~s", [Scheme, URL]);
 format_error({bad_url, {no_default_port, _, _}, URL}) ->
     format("Missing port in the URL: ~s", [URL]);
+format_error({bad_url, bad_port, URL}) ->
+    format("Invalid port number in the URL: ~s", [URL]);
 format_error({bad_url, _, URL}) ->
     format("Invalid URL: ~s", [URL]);
 format_error({bad_yaml, circular_include, Path}) ->
