@@ -19,7 +19,7 @@
 
 %% API
 -export([start/0, stop/0]).
--export([parse/2, parse/3, validate/2, fail/2]).
+-export([parse/2, parse/3, validate/2, fail/2, replace_macros/1]).
 -export([format_error/1, format_error/2, format_ctx/1]).
 %% Simple types
 -export([pos_int/0, pos_int/1, non_neg_int/0, non_neg_int/1]).
@@ -122,8 +122,19 @@ parse(Path0, Validators, Opts) ->
 	    erlang:raise(Class, Reason, ?EX_STACK(Stacktrace))
     end.
 
+-spec validate(validator(), yaml()) -> {ok, any()} | error_return().
 validate(Validator, Y) ->
     try {ok, Validator(Y)}
+    catch _:{?MODULE, Why, Ctx} ->
+	    {error, Why, Ctx};
+	  ?EX_RULE(Class, Reason, Stacktrace) ->
+	    _ = erase_ctx(),
+	    erlang:raise(Class, Reason, ?EX_STACK(Stacktrace))
+    end.
+
+-spec replace_macros(yaml_map()) -> {ok, yaml_map()} | error_return().
+replace_macros(Y) ->
+    try {ok, replace_macros(Y, [replace_macros])}
     catch _:{?MODULE, Why, Ctx} ->
 	    {error, Why, Ctx};
 	  ?EX_RULE(Class, Reason, Stacktrace) ->
