@@ -490,15 +490,15 @@ bad_url_no_default_port_test() ->
        yconf:parse(File, #{a => yconf:url([])})).
 
 bad_url_bad_port_test() ->
-    File = file(["a: foo://domain.tld:0"]),
+    File = file(["a: http://domain.tld:0"]),
     ?checkError(
        {bad_url, bad_port, _},
        yconf:parse(File, #{a => yconf:url([])})),
-    File = file(["a: foo://domain.tld:-1"]),
+    File = file(["a: http://domain.tld:-1"]),
     ?checkError(
        {bad_url, bad_port, _},
        yconf:parse(File, #{a => yconf:url([])})),
-    File = file(["a: foo://domain.tld:65536"]),
+    File = file(["a: http://domain.tld:65536"]),
     ?checkError(
        {bad_url, bad_port, _},
        yconf:parse(File, #{a => yconf:url([])})).
