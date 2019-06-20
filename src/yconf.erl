@@ -1043,7 +1043,7 @@ fail(Reason) ->
 
 -spec prep_path(term()) -> binary().
 prep_path(Path0) ->
-    Path1 = to_binary(Path0),
+    Path1 = (non_empty(binary()))(Path0),
     case filename:pathtype(Path1) of
 	relative ->
 	    case file:get_cwd() of

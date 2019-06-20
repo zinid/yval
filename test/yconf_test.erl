@@ -403,6 +403,12 @@ path_test() ->
        {ok, [{a, _}]},
        yconf:parse(File, #{a => yconf:path()})).
 
+empty_path_test() ->
+    File = file(["a: ''"]),
+    ?checkError(
+       empty_binary,
+       yconf:parse(File, #{a => yconf:path()})).
+
 file_read_test() ->
     File = file(""),
     File = file(["a: " ++ File]),
