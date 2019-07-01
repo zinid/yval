@@ -144,7 +144,7 @@ replace_macros(Y) ->
 
 -spec fail(term(), term()) -> no_return().
 fail(Tag, Reason) ->
-    erlang:error({Tag, Reason, erase_ctx()}).
+    erlang:nif_error({Tag, Reason, erase_ctx()}).
 
 %%%===================================================================
 %%% Validators
