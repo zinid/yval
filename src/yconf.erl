@@ -24,7 +24,7 @@
 %% Simple types
 -export([pos_int/0, pos_int/1, non_neg_int/0, non_neg_int/1]).
 -export([int/0, int/2, number/1, octal/0]).
--export([binary/0, binary/1]).
+-export([binary/0, binary/1, binary/2]).
 -export([string/0, string/1]).
 -export([enum/1, bool/0, atom/0, any/0]).
 %% Complex types
@@ -32,7 +32,7 @@
 -export([file/0, file/1]).
 -export([directory/0, directory/1]).
 -export([ip/0, ipv4/0, ipv6/0, ip_mask/0, port/0]).
--export([re/0, glob/0]).
+-export([re/0, re/1, glob/0, glob/1]).
 -export([path/0, binary_sep/1]).
 -export([beam/0, beam/1]).
 -export([timeout/1, timeout/2]).
@@ -240,10 +240,14 @@ binary() ->
     fun to_binary/1.
 
 -spec binary(iodata()) -> validator(binary()).
-binary(Regexp) when is_list(Regexp) orelse is_binary(Regexp) ->
+binary(Regexp) ->
+    binary(Regexp, []).
+
+-spec binary(iodata(), [re:compile_option()]) -> validator(binary()).
+binary(Regexp, Opts) when is_list(Regexp) orelse is_binary(Regexp) ->
     fun(Val) ->
 	    Bin = to_binary(Val),
-	    case re:run(Bin, Regexp) of
+	    case re:run(Bin, Regexp, Opts) of
 		{match, _} -> Bin;
 		nomatch -> fail({nomatch, Regexp, Bin})
 	    end
@@ -444,11 +448,15 @@ timeout(Unit, Inf) ->
 	    end
     end.
 
--spec re() -> re:mp().
+-spec re() -> validator(re:mp()).
 re() ->
+    re([]).
+
+-spec re([re:compile_option()]) -> validator(re:mp()).
+re(Opts) ->
     fun(Val) ->
 	    Bin = to_binary(Val),
-	    case re:compile(Bin) of
+	    case re:compile(Bin, Opts) of
 		{ok, RE} -> RE;
 		{error, Why} -> fail({bad_regexp, Why, Bin})
 	    end
@@ -456,9 +464,13 @@ re() ->
 
 -spec glob() -> validator(re:mp()).
 glob() ->
+    glob([]).
+
+-spec glob([re:compile_option()]) -> validator(re:mp()).
+glob(Opts) ->
     fun(Val) ->
 	    S = to_string(Val),
-	    case re:compile(sh_to_awk(S)) of
+	    case re:compile(sh_to_awk(S), Opts) of
 		{ok, RE} -> RE;
 		{error, Why} -> fail({bad_glob, Why, S})
 	    end
