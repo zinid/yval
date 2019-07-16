@@ -437,19 +437,13 @@ port() ->
 -spec timeout(timeout_unit()) -> validator(pos_integer()).
 timeout(Unit) ->
     fun(Val) ->
-	    case to_int(Val) of
-		I when I>0 -> to_ms(I, Unit);
-		Bad -> fail({bad_timeout, Bad})
-	    end
+	    to_timeout(Val, Unit)
     end.
 
 -spec timeout(timeout_unit(), infinity()) -> validator(pos_integer() | infinity()).
 timeout(Unit, Inf) ->
     fun(Val) ->
-	    case to_int(Val, Inf) of
-		I when I>0 -> to_ms(I, Unit);
-		Bad -> fail({bad_timeout, Inf, Bad})
-	    end
+	    to_timeout(Val, Unit, Inf)
     end.
 
 -spec re() -> validator(re:mp()).
@@ -689,10 +683,8 @@ format_error({bad_pos_int, Inf, Bad}) ->
     format("Expected positive integer or '~s', got: ~B", [Inf, Bad]);
 format_error({bad_regexp, {Reason, _}, _}) ->
     format("Invalid regular expression: ~s", [Reason]);
-format_error({bad_timeout, Bad}) ->
-    format_error({bad_pos_int, Bad});
-format_error({bad_timeout, Inf, Bad}) ->
-    format_error({bad_pos_int, Inf, Bad});
+format_error({bad_timeout, _}) ->
+    format("Unexpected timeout format", []);
 format_error({bad_url, empty_host, URL}) ->
     format("Empty hostname in the URL: ~s", [URL]);
 format_error({bad_url, {unsupported_scheme, Scheme}, URL}) ->
@@ -985,9 +977,39 @@ to_number(N) when is_number(N) ->
 to_number(Bad) ->
     fail({bad_number, Bad}).
 
--spec to_ms(non_neg_integer() | infinity(), timeout_unit()) -> non_neg_integer() | infinity().
-to_ms(Inf, _) when is_atom(Inf) ->
-    Inf;
+-spec to_timeout(term(), timeout_unit()) -> pos_integer() | infinity().
+to_timeout(Term, Unit) ->
+    to_timeout(Term, Unit, undefined).
+
+-spec to_timeout(term(), timeout_unit(), infinity() | undefined) -> pos_integer() | infinity().
+to_timeout(I, Unit, _Inf) when is_integer(I), I>0 ->
+    to_ms(I, Unit);
+to_timeout(A, Unit, Inf) when is_atom(A) ->
+    to_timeout(atom_to_binary(A, latin1), Unit, Inf);
+to_timeout(B, _, Inf) when is_binary(B) ->
+    S = binary_to_list(B),
+    case string:to_integer(S) of
+	{error, _} when Inf /= undefined ->
+	    try list_to_existing_atom(S) of
+		infinite -> Inf;
+		infinity -> Inf;
+		unlimited -> Inf;
+		_ -> fail({bad_timeout, B})
+	    catch _:_ ->
+		    fail({bad_timeout, B})
+	    end;
+	{I, [_|_] = Suffix} when is_integer(I), I>0 ->
+	    case timeout_unit(Suffix) of
+		{ok, Unit} -> to_ms(I, Unit);
+		error -> fail({bad_timeout, B})
+	    end;
+	_ ->
+	    fail({bad_timeout, B})
+    end;
+to_timeout(Bad, _, _) ->
+    fail({bad_timeout, Bad}).
+
+-spec to_ms(pos_integer(), timeout_unit()) -> pos_integer().
 to_ms(I, Unit) ->
     case Unit of
 	millisecond -> I;
@@ -995,6 +1017,25 @@ to_ms(I, Unit) ->
 	minute -> timer:minutes(I);
 	hour -> timer:hours(I);
 	day -> timer:hours(I*24)
+    end.
+
+-spec timeout_unit(string()) -> {ok, timeout_unit()} | error.
+timeout_unit(S) ->
+    U = string:strip(string:to_lower(S), both, $ ),
+    if U == "ms"; U == "msec"; U == "msecs";
+       U == "millisec"; U == "millisecs";
+       U == "millisecond"; U == "milliseconds" ->
+	    {ok, millisecond};
+       U == "s"; U == "sec"; U == "secs"; U == "second"; U == "seconds" ->
+	    {ok, second};
+       U == "m"; U == "min"; U == "mins"; U == "minute"; U == "minutes" ->
+	    {ok, minute};
+       U == "h"; U == "hour"; U == "hours" ->
+	    {ok, hour};
+       U == "d"; U == "day"; U == "days" ->
+	    {ok, day};
+       true ->
+	    error
     end.
 
 -spec unique(list(T), [proplists:property()]) -> list(T).

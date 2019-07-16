@@ -616,10 +616,58 @@ timeout_test() ->
 			   hour => yconf:timeout(hour),
 			   day => yconf:timeout(day)})).
 
+timeout_format_test() ->
+    File = file(["ms: 1 ms",
+		 "msec: 1 msec",
+		 "msecs: 1 msecs",
+		 "millisec: 1 millisec",
+		 "millisecs: 1 millisecs",
+		 "millisecond: 1 millisecond",
+		 "s: 1 s",
+		 "sec: 1 sec",
+		 "secs: 1 secs",
+		 "second: 1 second",
+		 "seconds: 1 seconds",
+		 "m: 1 m",
+		 "min: 1 min",
+		 "mins: 1 mins",
+		 "minute: 1 minute",
+		 "minutes: 1 minutes",
+		 "h: 1 h",
+		 "hour: 1 hour",
+		 "hours: 1 hours",
+		 "d: 1 d",
+		 "day: 1 day",
+		 "days: 1 days"]),
+    ?assertEqual(
+       {ok, [{ms,1},
+	     {msec,1},
+	     {msecs,1},
+	     {millisec,1},
+	     {millisecs,1},
+	     {millisecond,1},
+	     {s,1000},
+	     {sec,1000},
+	     {secs,1000},
+	     {second,1000},
+	     {seconds,1000},
+	     {m,60000},
+	     {min,60000},
+	     {mins,60000},
+	     {minute,60000},
+	     {minutes,60000},
+	     {h,3600000},
+	     {hour,3600000},
+	     {hours,3600000},
+	     {d,86400000},
+	     {day,86400000},
+	     {days,86400000}]},
+       yconf:parse(File, #{'_' => yconf:timeout(millisecond)})).
+
 bad_timeout_test() ->
     File = file(["a: 0"]),
     ?checkError(
-       {bad_timeout, 0},
+       {bad_timeout, _},
        yconf:parse(File, #{a => yconf:timeout(day)})).
 
 timeout_infinity_test() ->
@@ -635,8 +683,23 @@ timeout_infinity_test() ->
 bad_timeout_infinity_test() ->
     File = file(["a: 0"]),
     ?checkError(
-       {bad_timeout, infinity, 0},
-       yconf:parse(File, #{a => yconf:timeout(day, infinity)})).
+       {bad_timeout, _},
+       yconf:parse(File, #{a => yconf:timeout(day, infinity)})),
+    File = file(["a: foo"]),
+    ?checkError(
+       {bad_timeout, _},
+       yconf:parse(File, #{a => yconf:timeout(second, unlimited)})),
+    ?checkError(
+       {bad_timeout, _},
+       yconf:parse(File, #{a => yconf:timeout(second)})),
+    File = file(["a: foo" ++ integer_to_list(erlang:phash2(erlang:timestamp()))]),
+    ?checkError(
+       {bad_timeout, _},
+       yconf:parse(File, #{a => yconf:timeout(second, infinity)})),
+    File = file(["a: 1 year"]),
+    ?checkError(
+       {bad_timeout, _},
+       yconf:parse(File, #{a => yconf:timeout(second)})).
 
 re_test() ->
     File = file(["a: ^[0-9]+$"]),
