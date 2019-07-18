@@ -525,7 +525,14 @@ list(Fun) ->
 -spec list(validator(T), [unique_opt() | sorted_opt()]) -> validator([T]).
 list(Fun, Opts) when ?is_validator(Fun) ->
     fun(L) when is_list(L) ->
-	    L1 = lists:map(Fun, L),
+	    {L1, _} = lists:mapfoldl(
+			fun(Val, Pos) ->
+				Ctx = get_ctx(),
+				put_ctx([Pos|Ctx]),
+				Val1 = Fun(Val),
+				put_ctx(Ctx),
+				{Val1, Pos+1}
+			end, 1, L),
 	    L2 = unique(L1, Opts),
 	    case proplists:get_bool(sorted, Opts) of
 		true -> lists:sort(L2);
