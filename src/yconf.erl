@@ -683,8 +683,15 @@ format_error({bad_pos_int, Inf, Bad}) ->
     format("Expected positive integer or '~s', got: ~B", [Inf, Bad]);
 format_error({bad_regexp, {Reason, _}, _}) ->
     format("Invalid regular expression: ~s", [Reason]);
-format_error({bad_timeout, _}) ->
-    format("Unexpected timeout format", []);
+format_error({bad_timeout, Bad}) ->
+    format("Expected positive integer, got ~s instead", [format_yaml_type(Bad)]);
+format_error({bad_timeout, Inf, Bad}) ->
+    format("Expected positive integer or '~s', got ~s instead",
+	   [Inf, format_yaml_type(Bad)]);
+format_error({bad_timeout_unit, Bad}) ->
+    format("Unexpected timeout unit: ~s", [Bad]);
+format_error({bad_timeout_min, Unit}) ->
+    format("Timeout must not be shorter than one ~s", [Unit]);
 format_error({bad_url, empty_host, URL}) ->
     format("Empty hostname in the URL: ~s", [URL]);
 format_error({bad_url, {unsupported_scheme, Scheme}, URL}) ->
@@ -982,32 +989,37 @@ to_timeout(Term, Unit) ->
     to_timeout(Term, Unit, undefined).
 
 -spec to_timeout(term(), timeout_unit(), infinity() | undefined) -> pos_integer() | infinity().
-to_timeout(I, Unit, _Inf) when is_integer(I), I>0 ->
-    to_ms(I, Unit);
+to_timeout(I, Unit, Inf) when is_integer(I) ->
+    if I>0 -> to_ms(I, Unit);
+       Inf == undefined -> fail({bad_pos_int, I});
+       true -> fail({bad_pos_int, Inf, I})
+    end;
 to_timeout(A, Unit, Inf) when is_atom(A) ->
     to_timeout(atom_to_binary(A, latin1), Unit, Inf);
-to_timeout(B, _, Inf) when is_binary(B) ->
+to_timeout(B, Unit, Inf) when is_binary(B) ->
     S = binary_to_list(B),
     case string:to_integer(S) of
 	{error, _} when Inf /= undefined ->
-	    try list_to_existing_atom(S) of
-		infinite -> Inf;
-		infinity -> Inf;
-		unlimited -> Inf;
-		_ -> fail({bad_timeout, B})
-	    catch _:_ ->
-		    fail({bad_timeout, B})
-	    end;
+	    _ = (enum([infinite, infinity, unlimited]))(B),
+	    Inf;
+	{error, _} ->
+	    fail({bad_int, B});
+	{I, ""} when is_integer(I), I>0 ->
+	    to_ms(I, Unit);
 	{I, [_|_] = Suffix} when is_integer(I), I>0 ->
 	    case timeout_unit(Suffix) of
-		{ok, Unit} -> to_ms(I, Unit);
-		error -> fail({bad_timeout, B})
+		{ok, Unit1} -> to_ms(I, Unit1, Unit);
+		error -> fail({bad_timeout_unit, Suffix})
 	    end;
-	_ ->
-	    fail({bad_timeout, B})
+	{I, _} when Inf == undefined ->
+	    fail({bad_pos_int, I});
+	{I, _} ->
+	    fail({bad_pos_int, Inf, I})
     end;
-to_timeout(Bad, _, _) ->
-    fail({bad_timeout, Bad}).
+to_timeout(Bad, _, Inf) when Inf == undefined ->
+    fail({bad_timeout, Bad});
+to_timeout(Bad, _, Inf) ->
+    fail({bad_timeout, Inf, Bad}).
 
 -spec to_ms(pos_integer(), timeout_unit()) -> pos_integer().
 to_ms(I, Unit) ->
@@ -1017,6 +1029,14 @@ to_ms(I, Unit) ->
 	minute -> timer:minutes(I);
 	hour -> timer:hours(I);
 	day -> timer:hours(I*24)
+    end.
+
+-spec to_ms(pos_integer(), timeout_unit(), timeout_unit()) -> pos_integer().
+to_ms(I, Unit, MinUnit) ->
+    MSecs = to_ms(I, Unit),
+    case MSecs >= to_ms(1, MinUnit) of
+	true -> MSecs;
+	false -> fail({bad_timeout_min, MinUnit})
     end.
 
 -spec timeout_unit(string()) -> {ok, timeout_unit()} | error.
