@@ -21,7 +21,12 @@
   {modules,      []},
   {registered,   []},
   {applications, [kernel, stdlib, fast_yaml]},
-  {env,          []}]}.
+  {env,          []}
+
+  %% hex.pm packaging:
+  {licenses, ["Apache 2.0"]},
+  {links, [{"Github", "https://github.com/processone/yconf"}]}
+]}.
 
 %% Local Variables:
 %% mode: erlang
