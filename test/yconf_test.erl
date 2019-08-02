@@ -345,6 +345,18 @@ bad_binary_re_test() ->
        {nomatch, "^[a-z]+$", <<"fooBAR">>},
        yconf:parse(File, #{a => yconf:binary("^[a-z]+$")})).
 
+base64_test() ->
+    File = file(["a: Zm9v"]),
+    ?assertEqual(
+       {ok, [{a, <<"foo">>}]},
+       yconf:parse(File, #{a => yconf:base64()})).
+
+bad_base64_test() ->
+    File = file(["a: foo"]),
+    ?checkError(
+       {bad_base64, <<"foo">>},
+       yconf:parse(File, #{a => yconf:base64()})).
+
 atom_test() ->
     File = file(["a: atom"]),
     ?assertEqual(

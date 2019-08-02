@@ -34,7 +34,7 @@
 -export([ip/0, ipv4/0, ipv6/0, ip_mask/0, port/0]).
 -export([re/0, re/1, glob/0, glob/1]).
 -export([path/0, binary_sep/1]).
--export([beam/0, beam/1]).
+-export([beam/0, beam/1, base64/0]).
 -export([timeout/1, timeout/2]).
 %% Composite types
 -export([list/1, list/2]).
@@ -507,6 +507,15 @@ beam(Exports) ->
 	    end
     end.
 
+-spec base64() -> validator(binary()).
+base64() ->
+    fun(Val) ->
+	    B = to_binary(Val),
+	    try base64:decode(B)
+	    catch _:_ -> fail({bad_base64, B})
+	    end
+    end.
+
 -spec non_empty(validator(T)) -> validator(T).
 non_empty(Fun) ->
     fun(Val) ->
@@ -645,6 +654,8 @@ format_error({bad_binary, Bad}) ->
     format("Expected string, got ~s instead", [format_yaml_type(Bad)]);
 format_error({bad_bool, Bad}) ->
     format("Expected boolean, got ~s instead", [format_yaml_type(Bad)]);
+format_error({bad_base64, _}) ->
+    format("Invalid Base64 string", []);
 format_error({bad_cwd, Why}) ->
     format("Failed to get current directory name: ~s",
 	   [file:format_error(Why)]);
