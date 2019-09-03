@@ -165,14 +165,28 @@ enum([H|_] = List) when is_atom(H); is_binary(H) ->
 bool() ->
     fun(Val) ->
 	    case to_atom(Val) of
-		on -> true;
-		off -> false;
-		yes -> true;
-		no -> false;
-		y -> true;
-		n -> false;
-		true -> true;
+		'FALSE' -> false;
+		'False' -> false;
+		'N' -> false;
+		'NO' -> false;
+		'No' -> false;
+		'OFF' -> false;
+		'ON' -> true;
+		'Off' -> false;
+		'On' -> true;
+		'TRUE' -> true;
+		'True' -> true;
+		'Y' -> true;
+		'YES' -> true;
+		'Yes' -> true;
 		false -> false;
+		n -> false;
+		no -> false;
+		off -> false;
+		on -> true;
+		true -> true;
+		y -> true;
+		yes -> true;
 		Bad -> fail({bad_bool, Bad})
 	    end
     end.
