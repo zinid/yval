@@ -165,28 +165,14 @@ enum([H|_] = List) when is_atom(H); is_binary(H) ->
 bool() ->
     fun(Val) ->
 	    case to_atom(Val) of
-		'FALSE' -> false;
-		'False' -> false;
-		'N' -> false;
-		'NO' -> false;
-		'No' -> false;
-		'OFF' -> false;
-		'ON' -> true;
-		'Off' -> false;
-		'On' -> true;
-		'TRUE' -> true;
-		'True' -> true;
-		'Y' -> true;
-		'YES' -> true;
-		'Yes' -> true;
-		false -> false;
-		n -> false;
-		no -> false;
-		off -> false;
 		on -> true;
-		true -> true;
-		y -> true;
+		off -> false;
 		yes -> true;
+		no -> false;
+		y -> true;
+		n -> false;
+		true -> true;
+		false -> false;
 		Bad -> fail({bad_bool, Bad})
 	    end
     end.
@@ -827,7 +813,9 @@ format_yaml_type(Unexpected) ->
 format_yaml(I) when is_integer(I) ->
     integer_to_list(I);
 format_yaml(B) when is_atom(B) ->
-    erlang:atom_to_binary(B, utf8);
+    try erlang:atom_to_binary(B, latin1)
+    catch _:badarg -> erlang:atom_to_binary(B, utf8)
+    end;
 format_yaml(Y) ->
     S = try iolist_to_binary(fast_yaml:encode(Y))
 	catch _:_ ->
@@ -923,7 +911,7 @@ replace_macro(L, Macro, Macros, Path) when is_list(L) ->
 replace_macro({K, V}, Macro, Macros, Path) ->
     {K, replace_macro(V, Macro, Macros, Path)};
 replace_macro(V, {Name, Val}, Macros, Path) ->
-    V1 = if is_atom(V) -> atom_to_binary(V, utf8);
+    V1 = if is_atom(V) -> atom_to_binary(V, latin1);
 	    true -> V
 	 end,
     case V1 of
@@ -970,7 +958,7 @@ read_include_files(Includes, Opts, Paths) ->
 %%%===================================================================
 -spec to_binary(term()) -> binary().
 to_binary(A) when is_atom(A) ->
-    atom_to_binary(A, utf8);
+    atom_to_binary(A, latin1);
 to_binary(B) when is_binary(B) ->
     B;
 to_binary(Bad) ->
@@ -987,6 +975,8 @@ to_atom(Bad) ->
     fail({bad_atom, Bad}).
 
 -spec to_string(term()) -> string().
+to_string(A) when is_atom(A) ->
+    atom_to_list(A);
 to_string(S) ->
     binary_to_list(to_binary(S)).
 

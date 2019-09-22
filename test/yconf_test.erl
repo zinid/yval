@@ -1099,6 +1099,18 @@ bad_cwd_test() ->
 unknown_reason_test() ->
     test_format_error({error, foo, []}).
 
+unicode_test() ->
+    UTF8CharList = [209,134],
+    UTF8CharBin = list_to_binary(UTF8CharList),
+    UTF8CharAtom = list_to_atom(UTF8CharList),
+    File = file(["a: " ++ UTF8CharList,
+		 "b: " ++ UTF8CharList]),
+    ?assertEqual(
+       {ok, [{a, UTF8CharAtom}, {b, UTF8CharBin}]},
+       yconf:parse(File, #{a => yconf:atom(),
+			   b => yconf:binary()},
+		   [plain_as_atom])).
+
 stop_test() ->
     ?assertEqual(ok, yconf:stop()).
 
