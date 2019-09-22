@@ -1109,7 +1109,11 @@ unicode_test() ->
        {ok, [{a, UTF8CharAtom}, {b, UTF8CharBin}]},
        yconf:parse(File, #{a => yconf:atom(),
 			   b => yconf:binary()},
-		   [plain_as_atom])).
+		   [plain_as_atom])),
+    ?assertEqual(
+       {ok, [{a, UTF8CharAtom}, {b, UTF8CharBin}]},
+       yconf:parse(File, #{a => yconf:atom(),
+			   b => yconf:binary()})).
 
 stop_test() ->
     ?assertEqual(ok, yconf:stop()).

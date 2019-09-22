@@ -966,7 +966,7 @@ to_binary(Bad) ->
 
 -spec to_atom(term()) -> atom().
 to_atom(B) when is_binary(B) ->
-    try binary_to_atom(B, utf8)
+    try binary_to_atom(B, latin1)
     catch _:system_limit -> fail({bad_length, 255})
     end;
 to_atom(A) when is_atom(A) ->
