@@ -153,7 +153,7 @@ fail(Tag, Reason) ->
 enum([H|_] = List) when is_atom(H); is_binary(H) ->
     fun(Val) ->
 	    Member = if is_binary(H) -> to_binary(Val);
-			is_atom(H) -> to_atom(Val)
+			is_atom(H) -> to_existing_atom(Val)
 		     end,
 	    case lists:member(Member, List) of
 		true -> Member;
@@ -164,7 +164,7 @@ enum([H|_] = List) when is_atom(H); is_binary(H) ->
 -spec bool() -> validator(boolean()).
 bool() ->
     fun(Val) ->
-	    case to_atom(Val) of
+	    case to_existing_atom(Val) of
 		on -> true;
 		off -> false;
 		yes -> true;
@@ -973,6 +973,14 @@ to_atom(A) when is_atom(A) ->
     A;
 to_atom(Bad) ->
     fail({bad_atom, Bad}).
+
+-spec to_existing_atom(term()) -> atom() | binary().
+to_existing_atom(B) when is_binary(B) ->
+    try binary_to_existing_atom(B, latin1)
+    catch _:_ -> B
+    end;
+to_existing_atom(A) ->
+    to_atom(A).
 
 -spec to_string(term()) -> string().
 to_string(A) when is_atom(A) ->
