@@ -644,8 +644,7 @@ options(Validators, Options) ->
 format_error(Why, []) ->
     format_error(Why);
 format_error(Why, Ctx) ->
-    [H|T] = format_error(Why),
-    format_ctx(Ctx) ++ ": " ++ [string:to_lower(H)|T].
+    format_ctx(Ctx) ++ ": " ++ format_error(Why).
 
 -spec format_error(error_reason()) -> string().
 format_error({bad_atom, Bad}) ->
