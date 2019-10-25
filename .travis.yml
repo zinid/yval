@@ -1,8 +1,8 @@
 language: erlang
 
 otp_release:
-  - 18.0
-  - 21.3
+  - 19.3
+  - 22.1
 
 install:
   - sudo apt-get -qq install libyaml-dev
