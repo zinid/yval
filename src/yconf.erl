@@ -318,7 +318,7 @@ file(write) ->
 			    fail({create_file, Why, Path})
 		    end;
 		{error, Why} ->
-		    fail({create_dir, Why, Path})
+		    fail({create_dir, Why, filename:dirname(Path)})
 	    end
     end.
 
