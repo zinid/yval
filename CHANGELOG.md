@@ -1,5 +1,6 @@
 # Version 1.0.2
 
+* Updating fast_yaml to version 1.0.22.
 * Correctly report directory name
 * Don't lowercase first letter in reason string
 * Update testing OTP releases
