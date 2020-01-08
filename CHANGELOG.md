@@ -1,3 +1,10 @@
+# Version 1.0.2
+
+* Correctly report directory name
+* Don't lowercase first letter in reason string
+* Update testing OTP releases
+* Convert to existing atom when validating bool or enum
+
 # Version 1.0.1
 
 * Updating fast_yaml to version 1.0.21.
