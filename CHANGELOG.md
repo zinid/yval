@@ -1,3 +1,7 @@
+# Version 1.0.3
+
+* Update copyright year
+
 # Version 1.0.2
 
 * Updating fast_yaml to version 1.0.22.
