@@ -1,6 +1,5 @@
 %%%-------------------------------------------------------------------
 %%% @author Evgeny Khramtsov <ekhramtsov@process-one.net>
-%%% @copyright (C) 2002-2020 ProcessOne, SARL. All Rights Reserved.
 %%%
 %%% Licensed under the Apache License, Version 2.0 (the "License");
 %%% you may not use this file except in compliance with the License.
@@ -15,17 +14,17 @@
 %%% limitations under the License.
 %%%
 %%%-------------------------------------------------------------------
-{application, yconf,
- [{description,  "YAML configuration processor"},
-  {vsn,          "1.0.3"},
+{application, yval,
+ [{description,  "YAML validator"},
+  {vsn,          "1.0.5"},
   {modules,      []},
   {registered,   []},
-  {applications, [kernel, stdlib, fast_yaml]},
+  {applications, [kernel, stdlib]},
   {env,          []},
 
   %% hex.pm packaging:
   {licenses, ["Apache 2.0"]},
-  {links, [{"Github", "https://github.com/processone/yconf"}]}
+  {links, [{"Github", "https://github.com/zinid/yval"}]}
 ]}.
 
 %% Local Variables:

@@ -16,7 +16,7 @@
 %%% limitations under the License.
 %%%
 %%%-------------------------------------------------------------------
--module(yconf_test).
+-module(yval_test).
 -include_lib("eunit/include/eunit.hrl").
 
 -define(checkError(Pattern, Expression),
@@ -30,187 +30,83 @@
 %%% Tests
 %%%===================================================================
 start_test() ->
-    ?assertEqual(ok, yconf:start()).
+    ?assertEqual(ok, yval:start()).
 
-validate_test() ->
-    ?assertEqual({ok, 1}, yconf:validate(yconf:any(), 1)).
+any_test() ->
+    ?assertEqual(
+       {ok, 1},
+       yval:validate(yval:any(), 1)).
 
 error_validate_test() ->
     ?checkError(
        {bad_int, _},
-       yconf:validate(yconf:int(), foo)).
+       yval:validate(yval:int(), foo)).
 
 empty_yaml_test() ->
-    File = file(""),
-    ?assertEqual({ok, []}, yconf:parse(File, #{})).
-
-bad_yaml_test() ->
-    ?checkError(
-       {bad_yaml, enoent, _},
-       yconf:parse("non-existent.yml", #{})).
-
-define_macro_test() ->
-    File = file(["define_macro:",
-		 "  A: 1",
-		 "  B: 2",
-		 "  C: 3",
-		 "a: A",
-		 "b: B",
-		 "c: C"]),
     ?assertEqual(
-       {ok, [{a, 1}, {b, 2}, {c, 3}]},
-       yconf:parse(File, #{'_' => yconf:any()}, [replace_macros])).
-
-include_config_file_test() ->
-    IncludedFile = included_file(["a: 1",
-				  "b: 2"]),
-    File = file(["include_config_file: " ++ IncludedFile,
-		 "c: 3"]),
-    ?assertEqual(
-       {ok, [{a, 1}, {b, 2}, {c, 3}]},
-       yconf:parse(File, #{'_' => yconf:any()}, [include_files])).
-
-include_allow_only_test() ->
-    IncludedFile = included_file(["a: 1",
-				  "b: 2",
-				  "c: 3"]),
-    File = file(["include_config_file:",
-		 " " ++ IncludedFile  ++ ":",
-		 "  allow_only:",
-		 "   - a",
-		 "   - c"]),
-    ?assertEqual(
-       {ok, [{a, 1}, {c, 3}]},
-       yconf:parse(File, #{'_' => yconf:any()}, [include_files])).
-
-include_disallow_test() ->
-    IncludedFile = included_file(["a: 1",
-				  "b: 2",
-				  "c: 3"]),
-    File = file(["include_config_file:",
-		 " " ++ IncludedFile  ++ ":",
-		 "  disallow:",
-		 "   - a",
-		 "   - c"]),
-    ?assertEqual(
-       {ok, [{b, 2}]},
-       yconf:parse(File, #{'_' => yconf:any()}, [include_files])).
-
-duplicated_macro_test() ->
-    File = file(["define_macro:",
-		 " MACRO: 1",
-		 "define_macro:",
-		 " MACRO: 2",
-		 "a: MACRO"]),
-    ?checkError(
-       {duplicated_macro, <<"MACRO">>},
-       yconf:parse(File, #{'_' => yconf:any()}, [replace_macros])).
-
-included_macro_test() ->
-    IncludedFile = included_file(["define_macro:",
-				  " MACRO: 1",
-				  "b: MACRO"]),
-    File = file(["a: MACRO",
-		 "include_config_file: " ++ IncludedFile]),
-    ?assertEqual(
-       {ok, [{a, 1}, {b, 1}]},
-       yconf:parse(File, #{'_' => yconf:any()}, [replace_macros, include_files])).
-
-nested_macro_test() ->
-    File = file(["define_macro:",
-		 " FOO: BAR",
-		 " BAR: BAZ",
-		 " BAZ: baz",
-		 "foo: FOO",
-		 "bar: FOO",
-		 "baz: FOO"]),
-    ?assertEqual(
-       {ok, [{foo, <<"baz">>}, {bar, <<"baz">>}, {baz, <<"baz">>}]},
-       yconf:parse(File, #{'_' => yconf:any()}, [replace_macros])).
-
-include_circular_test() ->
-    File = file(""),
-    IncludedFile = included_file(["include_config_file: " ++ File]),
-    File = file(["include_config_file: " ++ IncludedFile]),
-    ?checkError(
-       {bad_yaml, circular_include, _},
-       yconf:parse(File, #{}, [include_files])).
-
-macro_circular_test() ->
-    File = file(["define_macro:",
-		 " FOO: BAR",
-		 " BAR: BAZ",
-		 " BAZ: FOO"]),
-    ?checkError(
-       {circular_macro, <<"FOO">>},
-       yconf:parse(File, #{}, [replace_macros])).
-
-any_test() ->
-    File = file(["a: 1"]),
-    ?assertEqual(
-       {ok, [{a, 1}]},
-       yconf:parse(File, #{a => yconf:any()})).
+       {ok, []},
+       yval:validate(yval:options(#{}), [])).
 
 enum_atom_test() ->
-    File = file(["a: foo"]),
     ?assertEqual(
-       {ok, [{a, foo}]},
-       yconf:parse(File, #{a => yconf:enum([foo, bar])})).
+       {ok, foo},
+       yval:validate(yval:enum([foo, bar]), <<"foo">>)).
 
 enum_binary_test() ->
-    File = file(["a: foo"]),
     ?assertEqual(
-       {ok, [{a, <<"foo">>}]},
-       yconf:parse(File, #{a => yconf:enum([<<"foo">>, <<"bar">>])})).
+       {ok, <<"foo">>},
+       yval:validate(yval:enum([<<"foo">>, <<"bar">>]), <<"foo">>)).
 
 bad_enum_test() ->
-    File = file(["a: baz"]),
     ?checkError(
        {bad_enum, [foo, bar], baz},
-       yconf:parse(File, #{a => yconf:enum([foo, bar])})).
+       yval:validate(yval:enum([foo, bar]), <<"baz">>)).
 
 bool_test() ->
-    File = file(["a: true",
-		 "b: false",
-		 "c: on",
-		 "d: off",
-		 "e: yes",
-		 "f: no",
-		 "g: y",
-		 "h: n"]),
+    Y = [{<<"a">>, <<"true">>},
+         {<<"b">>, <<"false">>},
+         {<<"c">>, <<"on">>},
+         {<<"d">>, <<"off">>},
+         {<<"e">>, <<"yes">>},
+         {<<"f">>, <<"no">>},
+         {<<"g">>, <<"y">>},
+         {<<"h">>, <<"n">>}],
     ?assertEqual(
        {ok, [{a, true}, {b, false}, {c, true}, {d, false},
 	     {e, true}, {f, false}, {g, true}, {h, false}]},
-       yconf:parse(File, #{a => yconf:bool(),
-			   b => yconf:bool(),
-			   c => yconf:bool(),
-			   d => yconf:bool(),
-			   e => yconf:bool(),
-			   f => yconf:bool(),
-			   g => yconf:bool(),
-			   h => yconf:bool()})).
+       yval:validate(
+         yval:options(
+           #{a => yval:bool(),
+             b => yval:bool(),
+             c => yval:bool(),
+             d => yval:bool(),
+             e => yval:bool(),
+             f => yval:bool(),
+             g => yval:bool(),
+             h => yval:bool()}),
+         Y)).
 
 bad_bool_test() ->
-    File = file(["a: bad"]),
     ?checkError(
        {bad_bool, bad},
-       yconf:parse(File, #{a => yconf:bool()})).
+       yval:validate(yval:bool(), <<"bad">>)).
 
 int_test() ->
-    File = file(["a: 5",
-		 "b: 0",
-		 "c: -7"]),
+    Y = [{<<"a">>, 5},
+         {<<"b">>, 0},
+         {<<"c">>, -7}],
     ?assertEqual(
        {ok, [{a, 5}, {b, 0}, {c, -7}]},
-       yconf:parse(File, #{a => yconf:int(),
-			   b => yconf:int(),
-			   c => yconf:int()})).
+       yval:validate(
+         yval:options(#{a => yval:int(),
+                        b => yval:int(),
+                        c => yval:int()}),
+         Y)).
 
 bad_int_test() ->
-    File = file(["a: bad"]),
     ?checkError(
        {bad_int, _},
-       yconf:parse(File, #{a => yconf:int()})).
+       yval:validate(yval:int(), <<"bad">>)).
 
 int_range_test() ->
     File = file(["a: 5",
@@ -218,27 +114,27 @@ int_range_test() ->
 		 "c: -10"]),
     ?assertEqual(
        {ok, [{a, 5}, {b, 0}, {c, -10}]},
-       yconf:parse(File, #{a => yconf:int(4, 5),
-			   b => yconf:int(-1, 5),
-			   c => yconf:int(-10, 0)})).
+       yval:validate(File, #{a => yval:int(4, 5),
+			   b => yval:int(-1, 5),
+			   c => yval:int(-10, 0)})).
 
 bad_int_range_test() ->
     File = file(["a: 5"]),
     ?checkError(
        {bad_int, 10, 20, 5},
-       yconf:parse(File, #{a => yconf:int(10, 20)})).
+       yval:validate(File, #{a => yval:int(10, 20)})).
 
 pos_int_test() ->
     File = file(["a: 1"]),
     ?assertEqual(
        {ok, [{a, 1}]},
-       yconf:parse(File, #{a => yconf:pos_int()})).
+       yval:validate(File, #{a => yval:pos_int()})).
 
 bad_pos_int_test() ->
     File = file(["a: 0"]),
     ?checkError(
        {bad_pos_int, 0},
-       yconf:parse(File, #{a => yconf:pos_int()})).
+       yval:validate(File, #{a => yval:pos_int()})).
 
 pos_int_infinity_test() ->
     File = file(["a: 1",
@@ -247,36 +143,36 @@ pos_int_infinity_test() ->
 		 "d: unlimited"]),
     ?assertEqual(
        {ok, [{a, 1}, {b, infinite}, {c, unlimited}, {d, infinity}]},
-       yconf:parse(File, #{a => yconf:pos_int(infinity),
-			   b => yconf:pos_int(infinite),
-			   c => yconf:pos_int(unlimited),
-			   d => yconf:pos_int(infinity)})).
+       yval:validate(File, #{a => yval:pos_int(infinity),
+			   b => yval:pos_int(infinite),
+			   c => yval:pos_int(unlimited),
+			   d => yval:pos_int(infinity)})).
 
 bad_pos_int_infinity_test() ->
     File = file(["a: 0"]),
     ?checkError(
        {bad_pos_int, infinity, 0},
-       yconf:parse(File, #{a => yconf:pos_int(infinity)})),
+       yval:validate(File, #{a => yval:pos_int(infinity)})),
     ?checkError(
        {bad_int, foo},
-       yconf:validate(yconf:pos_int(infinity), foo)),
+       yval:validate(yval:pos_int(infinity), foo)),
     ?checkError(
        {bad_int, _},
-       yconf:validate(
-	 yconf:pos_int(infinity),
+       yval:validate(
+	 yval:pos_int(infinity),
 	 list_to_binary(lists:duplicate(256, $z)))).
 
 non_neg_int_test() ->
     File = file(["a: 0"]),
     ?assertEqual(
        {ok, [{a, 0}]},
-       yconf:parse(File, #{a => yconf:non_neg_int()})).
+       yval:validate(File, #{a => yval:non_neg_int()})).
 
 bad_non_neg_int_test() ->
     File = file(["a: -1"]),
     ?checkError(
        {bad_non_neg_int, -1},
-       yconf:parse(File, #{a => yconf:non_neg_int()})).
+       yval:validate(File, #{a => yval:non_neg_int()})).
 
 non_neg_int_infinity_test() ->
     File = file(["a: 0",
@@ -285,32 +181,32 @@ non_neg_int_infinity_test() ->
 		 "d: unlimited"]),
     ?assertEqual(
        {ok, [{a, 0}, {b, infinite}, {c, unlimited}, {d, infinity}]},
-       yconf:parse(File, #{a => yconf:non_neg_int(infinity),
-			   b => yconf:non_neg_int(infinite),
-			   c => yconf:non_neg_int(unlimited),
-			   d => yconf:non_neg_int(infinity)})).
+       yval:validate(File, #{a => yval:non_neg_int(infinity),
+			   b => yval:non_neg_int(infinite),
+			   c => yval:non_neg_int(unlimited),
+			   d => yval:non_neg_int(infinity)})).
 
 bad_non_neg_int_infinity_test() ->
     File = file(["a: -1"]),
     ?checkError(
        {bad_non_neg_int, infinity, -1},
-       yconf:parse(File, #{a => yconf:non_neg_int(infinity)})).
+       yval:validate(File, #{a => yval:non_neg_int(infinity)})).
 
 number_test() ->
     File = file(["a: 0.5"]),
     ?assertEqual(
        {ok, [{a, 0.5}]},
-       yconf:parse(File, #{a => yconf:number(0.5)})).
+       yval:validate(File, #{a => yval:number(0.5)})).
 
 bad_number_test() ->
     File = file(["a: bad"]),
     ?checkError(
        {bad_number, _},
-       yconf:parse(File, #{a => yconf:number(1.0)})),
+       yval:validate(File, #{a => yval:number(1.0)})),
     File = file(["a: 0.4"]),
     ?checkError(
        {bad_number, 0.5, 0.4},
-       yconf:parse(File, #{a => yconf:number(0.5)})).
+       yval:validate(File, #{a => yval:number(0.5)})).
 
 binary_test() ->
     File = file(["a: foo",
@@ -318,16 +214,16 @@ binary_test() ->
 		 "c: 'baz'"]),
     ?assertEqual(
        {ok, [{a, <<"foo">>}, {b, <<"bar">>}, {c, <<"baz">>}]},
-       yconf:parse(File, #{a => yconf:binary(),
-			   b => yconf:binary(),
-			   c => yconf:binary()})),
-    ?assertEqual(<<"foo">>, (yconf:binary())(foo)).
+       yval:validate(File, #{a => yval:binary(),
+			   b => yval:binary(),
+			   c => yval:binary()})),
+    ?assertEqual(<<"foo">>, (yval:binary())(foo)).
 
 bad_binary_test() ->
     File = file(["a: 1"]),
     ?checkError(
        {bad_binary, 1},
-       yconf:parse(File, #{a => yconf:binary()})).
+       yval:validate(File, #{a => yval:binary()})).
 
 binary_re_test() ->
     File = file(["a: foo",
@@ -335,57 +231,57 @@ binary_re_test() ->
 		 "c: \"123\""]),
     ?assertEqual(
        {ok, [{a, <<"foo">>}, {b, <<"BAR">>}, {c, <<"123">>}]},
-       yconf:parse(File, #{a => yconf:binary("^[a-z]+$"),
-			   b => yconf:binary("^[A-Z]+$"),
-			   c => yconf:binary("^[0-9]+$")})).
+       yval:validate(File, #{a => yval:binary("^[a-z]+$"),
+			   b => yval:binary("^[A-Z]+$"),
+			   c => yval:binary("^[0-9]+$")})).
 
 bad_binary_re_test() ->
     File = file(["a: fooBAR"]),
     ?checkError(
        {nomatch, "^[a-z]+$", <<"fooBAR">>},
-       yconf:parse(File, #{a => yconf:binary("^[a-z]+$")})).
+       yval:validate(File, #{a => yval:binary("^[a-z]+$")})).
 
 base64_test() ->
     File = file(["a: Zm9v"]),
     ?assertEqual(
        {ok, [{a, <<"foo">>}]},
-       yconf:parse(File, #{a => yconf:base64()})).
+       yval:validate(File, #{a => yval:base64()})).
 
 bad_base64_test() ->
     File = file(["a: foo"]),
     ?checkError(
        {bad_base64, <<"foo">>},
-       yconf:parse(File, #{a => yconf:base64()})).
+       yval:validate(File, #{a => yval:base64()})).
 
 atom_test() ->
     File = file(["a: atom"]),
     ?assertEqual(
        {ok, [{a, atom}]},
-       yconf:parse(File, #{a => yconf:atom()})).
+       yval:validate(File, #{a => yval:atom()})).
 
 bad_atom_test() ->
     File = file(["a: []"]),
     ?checkError(
        {bad_atom, []},
-       yconf:parse(File, #{a => yconf:atom()})).
+       yval:validate(File, #{a => yval:atom()})).
 
 bad_atom_length_test() ->
     Bad = list_to_binary(lists:duplicate(256, $z)),
     ?checkError(
        {bad_length, 255},
-       yconf:validate(yconf:atom(), Bad)).
+       yval:validate(yval:atom(), Bad)).
 
 string_test() ->
     File = file(["a: foo"]),
     ?assertEqual(
        {ok, [{a, "foo"}]},
-       yconf:parse(File, #{a => yconf:string()})).
+       yval:validate(File, #{a => yval:string()})).
 
 bad_string_test() ->
     File = file(["a: []"]),
     ?checkError(
        {bad_binary, []},
-       yconf:parse(File, #{a => yconf:string()})).
+       yval:validate(File, #{a => yval:string()})).
 
 string_re_test() ->
     File = file(["a: foo",
@@ -393,188 +289,188 @@ string_re_test() ->
 		 "c: \"123\""]),
     ?assertEqual(
        {ok, [{a, "foo"}, {b, "BAR"}, {c, "123"}]},
-       yconf:parse(File, #{a => yconf:string("^[a-z]+$"),
-			   b => yconf:string("^[A-Z]+$"),
-			   c => yconf:string("^[0-9]+$")})).
+       yval:validate(File, #{a => yval:string("^[a-z]+$"),
+			   b => yval:string("^[A-Z]+$"),
+			   c => yval:string("^[0-9]+$")})).
 
 bad_string_re_test() ->
     File = file(["a: fooBAR"]),
     ?checkError(
        {nomatch, "^[a-z]+$", "fooBAR"},
-       yconf:parse(File, #{a => yconf:string("^[a-z]+$")})).
+       yval:validate(File, #{a => yval:string("^[a-z]+$")})).
 
 binary_sep_test() ->
     File = file(["a: b/c//d//"]),
     ?assertEqual(
        {ok, [{a, [<<"b">>, <<"c">>, <<"d">>]}]},
-       yconf:parse(File, #{a => yconf:binary_sep("/")})).
+       yval:validate(File, #{a => yval:binary_sep("/")})).
 
 path_test() ->
     File = file(["a: foo"]),
     ?assertMatch(
        {ok, [{a, _}]},
-       yconf:parse(File, #{a => yconf:path()})).
+       yval:validate(File, #{a => yval:path()})).
 
 empty_path_test() ->
     File = file(["a: ''"]),
     ?checkError(
        empty_binary,
-       yconf:parse(File, #{a => yconf:path()})).
+       yval:validate(File, #{a => yval:path()})).
 
 file_read_test() ->
     File = file(""),
     File = file(["a: " ++ File]),
     ?assertMatch(
        {ok, [{a, _}]},
-       yconf:parse(File, #{a => yconf:file()})).
+       yval:validate(File, #{a => yval:file()})).
 
 bad_file_read_test() ->
     File = file(["a: non_existent"]),
     ?checkError(
        {read_file, enoent, _},
-       yconf:parse(File, #{a => yconf:file()})).
+       yval:validate(File, #{a => yval:file()})).
 
 file_write_test() ->
     File = file(""),
     File = file(["a: " ++ File]),
     ?assertMatch(
        {ok, [{a, _}]},
-       yconf:parse(File, #{a => yconf:file(write)})).
+       yval:validate(File, #{a => yval:file(write)})).
 
 bad_file_write_test() ->
     File = file(["a: " ++ test_dir()]),
     ?checkError(
        {create_file, eisdir, _},
-       yconf:parse(File, #{a => yconf:file(write)})),
+       yval:validate(File, #{a => yval:file(write)})),
     File = file(["a: " ++ filename:join(File, "foo")]),
     ?checkError(
        {create_dir, eexist, _},
-       yconf:parse(File, #{a => yconf:file(write)})).
+       yval:validate(File, #{a => yval:file(write)})).
 
 directory_read_test() ->
     File = file(["a: " ++ test_dir()]),
     ?assertMatch(
        {ok, [{a, _}]},
-       yconf:parse(File, #{a => yconf:directory()})).
+       yval:validate(File, #{a => yval:directory()})).
 
 bad_directory_read_test() ->
     File = file(["a: non_existent"]),
     ?checkError(
        {read_dir, enoent, _},
-       yconf:parse(File, #{a => yconf:directory()})).
+       yval:validate(File, #{a => yval:directory()})).
 
 directory_write_test() ->
     File = file(["a: " ++ test_dir()]),
     ?assertMatch(
        {ok, [{a, _}]},
-       yconf:parse(File, #{a => yconf:directory(write)})).
+       yval:validate(File, #{a => yval:directory(write)})).
 
 bad_directory_write_test() ->
     File = file(""),
     File = file(["a: " ++ File]),
     ?checkError(
        {create_dir, eexist, _},
-       yconf:parse(File, #{a => yconf:directory(write)})).
+       yval:validate(File, #{a => yval:directory(write)})).
 
 url_test() ->
     File = file(["a: http://domain.tld",
 		 "b: https://domain.tld"]),
     ?assertEqual(
        {ok, [{a, <<"http://domain.tld">>}, {b, <<"https://domain.tld">>}]},
-       yconf:parse(File, #{a => yconf:url(), b => yconf:url()})).
+       yval:validate(File, #{a => yval:url(), b => yval:url()})).
 
 url_any_test() ->
     File = file(["a: wss://domain.tld:8443"]),
     ?assertEqual(
        {ok, [{a, <<"wss://domain.tld:8443">>}]},
-       yconf:parse(File, #{a => yconf:url([])})).
+       yval:validate(File, #{a => yval:url([])})).
 
 bad_url_scheme_test() ->
     File = file(["a: http://domain.tld"]),
     ?checkError(
        {bad_url, {unsupported_scheme, http}, <<"http://domain.tld">>},
-       yconf:parse(File, #{a => yconf:url([https])})).
+       yval:validate(File, #{a => yval:url([https])})).
 
 bad_url_host_test() ->
     File = file(["a: http:///path"]),
     ?checkError(
        {bad_url, empty_host, <<"http:///path">>},
-       yconf:parse(File, #{a => yconf:url()})).
+       yval:validate(File, #{a => yval:url()})).
 
 bad_url_no_default_port_test() ->
     File = file(["a: foo://domain.tld"]),
     ?checkError(
        {bad_url, {no_default_port, foo, _}, _},
-       yconf:parse(File, #{a => yconf:url([])})).
+       yval:validate(File, #{a => yval:url([])})).
 
 bad_url_bad_port_test() ->
     File = file(["a: http://domain.tld:0"]),
     ?checkError(
        {bad_url, bad_port, _},
-       yconf:parse(File, #{a => yconf:url([])})),
+       yval:validate(File, #{a => yval:url([])})),
     File = file(["a: http://domain.tld:-1"]),
     ?checkError(
        {bad_url, bad_port, _},
-       yconf:parse(File, #{a => yconf:url([])})),
+       yval:validate(File, #{a => yval:url([])})),
     File = file(["a: http://domain.tld:65536"]),
     ?checkError(
        {bad_url, bad_port, _},
-       yconf:parse(File, #{a => yconf:url([])})).
+       yval:validate(File, #{a => yval:url([])})).
 
 bad_url_test() ->
     File = file(["a: bad"]),
     ?checkError(
        {bad_url, _, <<"bad">>},
-       yconf:parse(File, #{a => yconf:url()})).
+       yval:validate(File, #{a => yval:url()})).
 
 octal_test() ->
     File = file(["a: \"644\""]),
     ?assertEqual(
        {ok, [{a, 420}]},
-       yconf:parse(File, #{a => yconf:octal()})).
+       yval:validate(File, #{a => yval:octal()})).
 
 bad_octal_test() ->
     File = file(["a: \"9\""]),
     ?checkError(
        {bad_octal, <<"9">>},
-       yconf:parse(File, #{a => yconf:octal()})).
+       yval:validate(File, #{a => yval:octal()})).
 
 ipv4_test() ->
     File = file(["a: 127.0.0.1"]),
     ?assertEqual(
        {ok, [{a, {127,0,0,1}}]},
-       yconf:parse(File, #{a => yconf:ipv4()})).
+       yval:validate(File, #{a => yval:ipv4()})).
 
 bad_ipv4_test() ->
     File = file(["a: '::1'"]),
     ?checkError(
        {bad_ipv4, "::1"},
-       yconf:parse(File, #{a => yconf:ipv4()})).
+       yval:validate(File, #{a => yval:ipv4()})).
 
 ipv6_test() ->
     File = file(["a: '::1'"]),
     ?assertEqual(
        {ok, [{a, {0,0,0,0,0,0,0,1}}]},
-       yconf:parse(File, #{a => yconf:ipv6()})).
+       yval:validate(File, #{a => yval:ipv6()})).
 
 bad_ipv6_test() ->
     File = file(["a: 127.0.0.1"]),
     ?checkError(
        {bad_ipv6, "127.0.0.1"},
-       yconf:parse(File, #{a => yconf:ipv6()})).
+       yval:validate(File, #{a => yval:ipv6()})).
 
 ip_test() ->
     File = file(["a: 127.0.0.1",
 		 "b: '::1'"]),
     ?assertEqual(
        {ok, [{a, {127,0,0,1}}, {b, {0,0,0,0,0,0,0,1}}]},
-       yconf:parse(File, #{a => yconf:ip(), b => yconf:ip()})).
+       yval:validate(File, #{a => yval:ip(), b => yval:ip()})).
 
 bad_ip_test() ->
     File = file(["a: bad"]),
     ?checkError(
        {bad_ip, "bad"},
-       yconf:parse(File, #{a => yconf:ip()})).
+       yval:validate(File, #{a => yval:ip()})).
 
 ip_mask_test() ->
     File = file(["a: 127.0.0.1",
@@ -590,25 +486,25 @@ ip_mask_test() ->
 	     {d, {{0,0,0,0,0,0,0,1}, 128}},
 	     {e, {{0,0,0,0,0,0,0,1}, 0}},
 	     {f, {{0,0,0,0,0,0,0,1}, 128}}]},
-       yconf:parse(File, #{a => yconf:ip_mask(),
-			   b => yconf:ip_mask(),
-			   c => yconf:ip_mask(),
-			   d => yconf:ip_mask(),
-			   e => yconf:ip_mask(),
-			   f => yconf:ip_mask()})).
+       yval:validate(File, #{a => yval:ip_mask(),
+			   b => yval:ip_mask(),
+			   c => yval:ip_mask(),
+			   d => yval:ip_mask(),
+			   e => yval:ip_mask(),
+			   f => yval:ip_mask()})).
 
 bad_ip_mask_test() ->
     File = file(["a: 127.0.0.1/128"]),
     ?checkError(
        {bad_ip_mask, "127.0.0.1/128"},
-       yconf:parse(File, #{a => yconf:ip_mask()})).
+       yval:validate(File, #{a => yval:ip_mask()})).
 
 port_test() ->
     File = file(["a: 1",
 		 "b: 65535"]),
     ?assertEqual(
        {ok, [{a, 1}, {b, 65535}]},
-       yconf:parse(File, #{a => yconf:port(), b => yconf:port()})).
+       yval:validate(File, #{a => yval:port(), b => yval:port()})).
 
 timeout_test() ->
     File = file(["millisecond: 1",
@@ -622,17 +518,17 @@ timeout_test() ->
 	     {minute, 60000},
 	     {hour, 3600000},
 	     {day, 86400000}]},
-       yconf:parse(File, #{millisecond => yconf:timeout(millisecond),
-			   second => yconf:timeout(second),
-			   minute => yconf:timeout(minute),
-			   hour => yconf:timeout(hour),
-			   day => yconf:timeout(day)})).
+       yval:validate(File, #{millisecond => yval:timeout(millisecond),
+			   second => yval:timeout(second),
+			   minute => yval:timeout(minute),
+			   hour => yval:timeout(hour),
+			   day => yval:timeout(day)})).
 
 timeout_atom_test() ->
     File = file(["a: '5'"]),
     ?assertEqual(
        {ok, [{a, 5}]},
-       yconf:parse(File, #{a => yconf:timeout(millisecond)},
+       yval:validate(File, #{a => yval:timeout(millisecond)},
 		   [plain_as_atom])).
 
 timeout_format_test() ->
@@ -681,7 +577,7 @@ timeout_format_test() ->
 	     {d,86400000},
 	     {day,86400000},
 	     {days,86400000}]},
-       yconf:parse(File, #{'_' => yconf:timeout(millisecond)})).
+       yval:validate(File, #{'_' => yval:timeout(millisecond)})).
 
 timeout_infinity_test() ->
     File = file(["a: infinity",
@@ -689,101 +585,101 @@ timeout_infinity_test() ->
 		 "c: unlimited"]),
     ?assertEqual(
        {ok, [{a, infinite}, {b, unlimited}, {c, infinity}]},
-       yconf:parse(File, #{a => yconf:timeout(day, infinite),
-			   b => yconf:timeout(day, unlimited),
-			   c => yconf:timeout(day, infinity)})).
+       yval:validate(File, #{a => yval:timeout(day, infinite),
+			   b => yval:timeout(day, unlimited),
+			   c => yval:timeout(day, infinity)})).
 
 bad_timeout_test() ->
     File = file(["a: []"]),
     ?checkError(
        {bad_timeout, []},
-       yconf:parse(File, #{a => yconf:timeout(second)})),
+       yval:validate(File, #{a => yval:timeout(second)})),
     ?checkError(
        {bad_timeout, infinity, []},
-       yconf:parse(File, #{a => yconf:timeout(second, infinity)})).
+       yval:validate(File, #{a => yval:timeout(second, infinity)})).
 
 bad_timeout_zero_test() ->
     File = file(["a: 0"]),
     ?checkError(
        {bad_pos_int, 0},
-       yconf:parse(File, #{a => yconf:timeout(second)})),
+       yval:validate(File, #{a => yval:timeout(second)})),
     ?checkError(
        {bad_pos_int, infinity, 0},
-       yconf:parse(File, #{a => yconf:timeout(second, infinity)})).
+       yval:validate(File, #{a => yval:timeout(second, infinity)})).
 
 bad_timeout_infinity_test() ->
     File = file(["a: foo"]),
     ?checkError(
        {bad_int, <<"foo">>},
-       yconf:parse(File, #{a => yconf:timeout(second)})),
+       yval:validate(File, #{a => yval:timeout(second)})),
     ?checkError(
        {bad_enum, _, foo},
-       yconf:parse(File, #{a => yconf:timeout(second, infinity)})).
+       yval:validate(File, #{a => yval:timeout(second, infinity)})).
 
 bad_timeout_unit_test() ->
     File = file(["a: 1foo"]),
     ?checkError(
        {bad_timeout_unit, "foo"},
-       yconf:parse(File, #{a => yconf:timeout(second)})).
+       yval:validate(File, #{a => yval:timeout(second)})).
 
 bad_timeout_min_test() ->
     File = file(["a: 1ms"]),
     ?checkError(
        {bad_timeout_min, second},
-       yconf:parse(File, #{a => yconf:timeout(second)})).
+       yval:validate(File, #{a => yval:timeout(second)})).
 
 bad_timeout_negative_test() ->
     File = file(["a: -1s"]),
     ?checkError(
        {bad_pos_int, -1},
-       yconf:parse(File, #{a => yconf:timeout(second)})),
+       yval:validate(File, #{a => yval:timeout(second)})),
     ?checkError(
        {bad_pos_int, infinity, -1},
-       yconf:parse(File, #{a => yconf:timeout(second, infinity)})).
+       yval:validate(File, #{a => yval:timeout(second, infinity)})).
 
 re_test() ->
     File = file(["a: ^[0-9]+$"]),
     ?assertMatch(
        {ok, [{a, _}]},
-       yconf:parse(File, #{a => yconf:re()})).
+       yval:validate(File, #{a => yval:re()})).
 
 bad_re_test() ->
     File = file(["a: '['"]),
     ?checkError(
        {bad_regexp, {_, _}, _},
-       yconf:parse(File, #{a => yconf:re()})).
+       yval:validate(File, #{a => yval:re()})).
 
 glob_test() ->
     File = file(["a: '*'"]),
     ?assertMatch(
        {ok, [{a, _}]},
-       yconf:parse(File, #{a => yconf:glob()})).
+       yval:validate(File, #{a => yval:glob()})).
 
 bad_glob_test() ->
     File = file(["a: '['"]),
     ?checkError(
        {bad_glob, {_, _}, _},
-       yconf:parse(File, #{a => yconf:glob()})).
+       yval:validate(File, #{a => yval:glob()})).
 
 beam_test() ->
     Exports = [[{foo, 1}, {parse, 2}], {parse, 3}, []],
     File = file(["a: yconf"]),
     ?assertMatch(
        {ok, [{a, yconf}]},
-       yconf:parse(File, #{a => yconf:beam(Exports)})).
+       yval:validate(File, #{a => yval:beam(Exports)})).
 
 bad_beam_test() ->
     File = file(["a: foo"]),
     ?checkError(
        {bad_module, foo},
-       yconf:parse(File, #{a => yconf:beam()})),
+       yval:validate(File, #{a => yval:beam()})),
     File = file(["a: yconf"]),
     ?checkError(
        {bad_export, {foo, 1}, yconf},
-       yconf:parse(File, #{a => yconf:beam([[{foo, 1}, {bar, 2}]])})),
+       yval:validate(File, #{a => yval:beam([[{foo, 1}, {bar, 2}]])})),
     ?checkError(
        {bad_export, {foo, 1}, yconf},
-       yconf:parse(File, #{a => yconf:beam([{foo, 1}])})).
+       yval:validate(File, #{a => yval:beam([{foo, 1}])})).
 
 non_empty_test() ->
     File = file(["a: [1,2,3]",
@@ -792,130 +688,130 @@ non_empty_test() ->
 		 "d: {e: f}"]),
     ?assertMatch(
        {ok, [{a, [1,2,3]}, {b, 1}, {c, foo}, {d, [_]}]},
-       yconf:parse(File, #{a => yconf:non_empty(yconf:list(yconf:int())),
-			   b => yconf:non_empty(yconf:int()),
-			   c => yconf:non_empty(yconf:atom()),
-			   d => yconf:non_empty(yconf:map(yconf:any(), yconf:any()))})).
+       yval:validate(File, #{a => yval:non_empty(yval:list(yval:int())),
+			   b => yval:non_empty(yval:int()),
+			   c => yval:non_empty(yval:atom()),
+			   d => yval:non_empty(yval:map(yval:any(), yval:any()))})).
 
 empty_atom_test() ->
     File = file(["a: ''"]),
     ?checkError(
        empty_atom,
-       yconf:parse(File, #{a => yconf:non_empty(yconf:atom())})).
+       yval:validate(File, #{a => yval:non_empty(yval:atom())})).
 
 empty_binary_test() ->
     File = file(["a: ''"]),
     ?checkError(
        empty_binary,
-       yconf:parse(File, #{a => yconf:non_empty(yconf:binary())})).
+       yval:validate(File, #{a => yval:non_empty(yval:binary())})).
 
 empty_list_test() ->
     File = file(["a: []"]),
     ?checkError(
        empty_list,
-       yconf:parse(File, #{a => yconf:non_empty(yconf:list(yconf:any()))})).
+       yval:validate(File, #{a => yval:non_empty(yval:list(yval:any()))})).
 
 empty_map_test() ->
     File = file(["a: {}"]),
     ?checkError(
        empty_list,
-       yconf:parse(File, #{a => yconf:non_empty(
-				  yconf:map(yconf:any(), yconf:any()))})).
+       yval:validate(File, #{a => yval:non_empty(
+				  yval:map(yval:any(), yval:any()))})).
 
 list_test() ->
     File = file(["a: [1,2,3]"]),
     ?assertMatch(
        {ok, [{a, [1,2,3]}]},
-       yconf:parse(File, #{a => yconf:list(yconf:any())})).
+       yval:validate(File, #{a => yval:list(yval:any())})).
 
 bad_list_test() ->
     File = file(["a: 1"]),
     ?checkError(
        {bad_list, 1},
-       yconf:parse(File, #{a => yconf:list(yconf:any())})).
+       yval:validate(File, #{a => yval:list(yval:any())})).
 
 sorted_list_test() ->
     File = file(["a: [3,2,1]"]),
     ?assertMatch(
        {ok, [{a, [1,2,3]}]},
-       yconf:parse(File, #{a => yconf:list(yconf:any(), [sorted])})).
+       yval:validate(File, #{a => yval:list(yval:any(), [sorted])})).
 
 bad_sorted_list_test() ->
     File = file(["a: 1"]),
     ?checkError(
        {bad_list, 1},
-       yconf:parse(File, #{a => yconf:list(yconf:any(), [sorted])})).
+       yval:validate(File, #{a => yval:list(yval:any(), [sorted])})).
 
 unique_list_test() ->
     File = file(["a: [1,2,3]"]),
     ?assertMatch(
        {ok, [{a, [1,2,3]}]},
-       yconf:parse(File, #{a => yconf:list(yconf:any(), [unique])})).
+       yval:validate(File, #{a => yval:list(yval:any(), [unique])})).
 
 bad_unique_list_test() ->
     File = file(["a: [1,2,1,3]"]),
     ?checkError(
        {duplicated_value, 1},
-       yconf:parse(File, #{a => yconf:list(yconf:any(), [unique])})),
+       yval:validate(File, #{a => yval:list(yval:any(), [unique])})),
     File = file(["a: [foo, bar, foo]"]),
     ?checkError(
        {duplicated_value, foo},
-       yconf:parse(File, #{a => yconf:list(yconf:atom(), [unique])})),
+       yval:validate(File, #{a => yval:list(yval:atom(), [unique])})),
     File = file(["a: [[1], [2], [1]]"]),
     ?checkError(
        {duplicated_value, [1]},
-       yconf:parse(File, #{a => yconf:list(yconf:any(), [unique])})).
+       yval:validate(File, #{a => yval:list(yval:any(), [unique])})).
 
 list_or_single_test() ->
     File = file(["a: 1",
 		 "b: [1,2,3]"]),
     ?assertMatch(
        {ok, [{a, [1]}, {b, [1,2,3]}]},
-       yconf:parse(File, #{a => yconf:list_or_single(yconf:any()),
-			   b => yconf:list_or_single(yconf:any())})).
+       yval:validate(File, #{a => yval:list_or_single(yval:any()),
+			   b => yval:list_or_single(yval:any())})).
 
 sorted_list_or_single_test() ->
     File = file(["a: 1",
 		 "b: [3,2,1]"]),
     ?assertMatch(
        {ok, [{a, [1]}, {b, [1,2,3]}]},
-       yconf:parse(File, #{a => yconf:list_or_single(yconf:any(), [sorted]),
-			   b => yconf:list_or_single(yconf:any(), [sorted])})).
+       yval:validate(File, #{a => yval:list_or_single(yval:any(), [sorted]),
+			   b => yval:list_or_single(yval:any(), [sorted])})).
 
 unique_list_or_single_test() ->
     File = file(["a: 1",
 		 "b: [1,2,3]"]),
     ?assertMatch(
        {ok, [{a, [1]}, {b, [1,2,3]}]},
-       yconf:parse(File, #{a => yconf:list_or_single(yconf:any(), [unique]),
-			   b => yconf:list_or_single(yconf:any(), [unique])})).
+       yval:validate(File, #{a => yval:list_or_single(yval:any(), [unique]),
+			   b => yval:list_or_single(yval:any(), [unique])})).
 
 bad_unique_list_or_single_test() ->
     File = file(["a: 1",
 		 "b: [1,2,1,3]"]),
     ?checkError(
        {duplicated_value, 1},
-       yconf:parse(File, #{a => yconf:list_or_single(yconf:any(), [unique]),
-			   b => yconf:list_or_single(yconf:any(), [unique])})).
+       yval:validate(File, #{a => yval:list_or_single(yval:any(), [unique]),
+			   b => yval:list_or_single(yval:any(), [unique])})).
 
 map_test() ->
     File = file(["a: {c: 2, b: 1}"]),
     ?assertEqual(
        {ok, [{a, [{c, 2}, {b, 1}]}]},
-       yconf:parse(File, #{a => yconf:map(yconf:atom(), yconf:any())})),
+       yval:validate(File, #{a => yval:map(yval:atom(), yval:any())})),
     ?assertEqual(
        {ok, [{a, [{c, 2}, {b, 1}]}]},
-       yconf:parse(File, #{a => yconf:map(yconf:atom(), yconf:any(),
+       yval:validate(File, #{a => yval:map(yval:atom(), yval:any(),
 					  [unique])})),
     ?assertEqual(
        {ok, [{a, [{b, 1}, {c, 2}]}]},
-       yconf:parse(File, #{a => yconf:map(yconf:atom(), yconf:any(),
+       yval:validate(File, #{a => yval:map(yval:atom(), yval:any(),
 					  [{return, orddict}])})),
     ?assertEqual(
        {ok, [{a, #{b => 1, c => 2}}]},
-       yconf:parse(File, #{a => yconf:map(yconf:atom(), yconf:any(),
+       yval:validate(File, #{a => yval:map(yval:atom(), yval:any(),
 					  [{return, map}])})),
-    Ret = yconf:parse(File, #{a => yconf:map(yconf:atom(), yconf:any(),
+    Ret = yval:validate(File, #{a => yval:map(yval:atom(), yval:any(),
 					     [{return, dict}])}),
     ?assertMatch({ok, [{a, _}]}, Ret),
     ?assertEqual(
@@ -923,71 +819,71 @@ map_test() ->
        lists:keysort(1, dict:to_list(element(2, hd(element(2, Ret)))))).
 
 bad_map_test() ->
-    V = yconf:map(yconf:atom(), yconf:any()),
+    V = yval:map(yval:atom(), yval:any()),
     File = file(["a: 1"]),
     ?checkError(
        {bad_map, 1},
-       yconf:parse(File, #{a => V})),
+       yval:validate(File, #{a => V})),
     File = file(["a: [1,2,3]"]),
     ?checkError(
        {bad_map, [1,2,3]},
-       yconf:parse(File, #{a => V})).
+       yval:validate(File, #{a => V})).
 
 bad_unique_map_test() ->
     File = file(["a: {c: 2, b: 1, c: 3}"]),
     ?checkError(
        {duplicated_key, c},
-       yconf:parse(File, #{a => yconf:map(yconf:atom(), yconf:any(),
+       yval:validate(File, #{a => yval:map(yval:atom(), yval:any(),
 					  [unique])})).
 
 either_test() ->
-    V = yconf:either(yconf:bool(), yconf:int()),
+    V = yval:either(yval:bool(), yval:int()),
     File = file(["a: true",
 		 "b: 5"]),
     ?assertEqual(
        {ok, [{a, true}, {b, 5}]},
-       yconf:parse(File, #{a => V, b => V})).
+       yval:validate(File, #{a => V, b => V})).
 
 either_atom_test() ->
-    V = yconf:either(atom, yconf:int()),
+    V = yval:either(atom, yval:int()),
     File = file(["a: atom",
 		 "b: 1"]),
     ?assertEqual(
        {ok, [{a, atom}, {b, 1}]},
-       yconf:parse(File, #{a => V, b => V})).
+       yval:validate(File, #{a => V, b => V})).
 
 and_then_test() ->
-    V = yconf:and_then(
-	  yconf:list(yconf:int()),
+    V = yval:and_then(
+	  yval:list(yval:int()),
 	  fun lists:sum/1),
     File = file(["a: [1,2,3]"]),
     ?assertEqual(
        {ok, [{a, 6}]},
-       yconf:parse(File, #{a => V})).
+       yval:validate(File, #{a => V})).
 
 options_test() ->
     File = file(["a: {b: 1, c: true}"]),
     ?assertEqual(
        {ok, [{a, [{b, 1}, {c, true}]}]},
-       yconf:parse(File, #{a => yconf:options(
-				  #{b => yconf:int(),
-				    c => yconf:bool(),
-				    d => yconf:atom()})})).
+       yval:validate(File, #{a => yval:options(
+				  #{b => yval:int(),
+				    c => yval:bool(),
+				    d => yval:atom()})})).
 
 options_return_map_test() ->
     File = file(["a: 1",
 		 "b: 2"]),
     ?assertEqual(
        {ok, #{a => 1, b => 2}},
-       yconf:parse(File, #{a => yconf:any(),
-			   b => yconf:any()},
+       yval:validate(File, #{a => yval:any(),
+			   b => yval:any()},
 		   [{return, map}])).
 
 options_return_dict_test() ->
     File = file(["a: 1",
 		 "b: 2"]),
-    Ret = yconf:parse(File, #{a => yconf:any(),
-			      b => yconf:any()},
+    Ret = yval:validate(File, #{a => yval:any(),
+			      b => yval:any()},
 		      [{return, dict}]),
     ?assertMatch({ok, _}, Ret),
     ?assertEqual(
@@ -999,52 +895,52 @@ options_return_orddict_test() ->
 		 "a: 2"]),
     ?assertEqual(
        {ok, [{a, 2}, {b, 1}]},
-       yconf:parse(File, #{a => yconf:any(),
-			   b => yconf:any()},
+       yval:validate(File, #{a => yval:any(),
+			   b => yval:any()},
 		   [{return, orddict}])).
 
 options_default_validator_test() ->
     File = file(["a: {b: 1, c: true}"]),
     ?assertEqual(
        {ok, [{a, [{b, 1}, {c, true}]}]},
-       yconf:parse(File, #{a => yconf:options(
-				  #{b => yconf:int(),
-				    '_' => yconf:bool()})})).
+       yval:validate(File, #{a => yval:options(
+				  #{b => yval:int(),
+				    '_' => yval:bool()})})).
 
 bad_options_test() ->
     File = file(["a: 1"]),
     ?checkError(
        {bad_map, 1},
-       yconf:parse(File, #{a => yconf:options(#{})})),
+       yval:validate(File, #{a => yval:options(#{})})),
     File = file(["a: [1,2,3]"]),
     ?checkError(
        {bad_map, [1,2,3]},
-       yconf:parse(File, #{a => yconf:options(#{})})).
+       yval:validate(File, #{a => yval:options(#{})})).
 
 bad_binary_map_option_test() ->
     File = file(["a: {b: foo}"]),
     ?checkError(
        {bad_bool, foo},
-       yconf:parse(File, #{a => yconf:map(yconf:binary(), yconf:bool())})).
+       yval:validate(File, #{a => yval:map(yval:binary(), yval:bool())})).
 
 bad_integer_map_option_test() ->
     File = file(["a: {1: foo}"]),
     ?checkError(
        {bad_bool, foo},
-       yconf:parse(File, #{a => yconf:map(yconf:int(), yconf:bool())})).
+       yval:validate(File, #{a => yval:map(yval:int(), yval:bool())})).
 
 unknown_option_test() ->
     File = file(["a: 1"]),
     ?checkError(
        {unknown_option, [define_macro], a},
-       yconf:parse(File, #{}, [replace_macros])).
+       yval:validate(File, #{}, [replace_macros])).
 
 missing_option_test() ->
     File = file(["a: 1"]),
     ?checkError(
        {missing_option, b},
-       yconf:parse(File, #{a => yconf:int(),
-			   b => yconf:any()},
+       yval:validate(File, #{a => yval:int(),
+			   b => yval:any()},
 		   [{required, [b]}])).
 
 disallowed_option_test() ->
@@ -1052,15 +948,15 @@ disallowed_option_test() ->
 		 "b: 2"]),
     ?checkError(
        {disallowed_option, b},
-       yconf:parse(File, #{a => yconf:int()},
+       yval:validate(File, #{a => yval:int()},
 		   [{disallowed, [b]}])),
     ?checkError(
        {disallowed_option, b},
-       yconf:parse(File, #{a => yconf:int(), b => yconf:int()},
+       yval:validate(File, #{a => yval:int(), b => yval:int()},
 		   [{disallowed, [b]}])),
     ?checkError(
        {disallowed_option, b},
-       yconf:parse(File, #{a => yconf:int(), b => yconf:int()},
+       yval:validate(File, #{a => yval:int(), b => yval:int()},
 		   [{required, [b]}, {disallowed, [b]}])).
 
 unknown_option_with_disallowed_test() ->
@@ -1068,7 +964,7 @@ unknown_option_with_disallowed_test() ->
 		 "c: 2"]),
     ?checkError(
        {unknown_option, [a], c},
-       yconf:parse(File, #{a => yconf:int(), b => yconf:int()},
+       yval:validate(File, #{a => yval:int(), b => yval:int()},
 		   [{disallowed, [b]}])).
 
 duplicated_option_test() ->
@@ -1077,11 +973,11 @@ duplicated_option_test() ->
 		 "a: 3"]),
     ?checkError(
        {duplicated_option, a},
-       yconf:parse(File, #{a => yconf:int(), b => yconf:int()},
+       yval:validate(File, #{a => yval:int(), b => yval:int()},
 		   [unique])),
     ?assertEqual(
        {ok, [{a, 1}, {b, 2}, {a, 3}]},
-       yconf:parse(File, #{a => yconf:int(), b => yconf:int()}, [])).
+       yval:validate(File, #{a => yval:int(), b => yval:int()}, [])).
 
 duplicated_unknown_option_test() ->
     File = file(["a: 1",
@@ -1089,8 +985,8 @@ duplicated_unknown_option_test() ->
 		 "b: 3"]),
     ?checkError(
        {duplicated_option, b},
-       yconf:parse(File, #{a => yconf:int(),
-			   '_' => yconf:any()},
+       yval:validate(File, #{a => yval:int(),
+			   '_' => yval:any()},
 		   [unique])).
 
 bad_cwd_test() ->
@@ -1107,16 +1003,16 @@ unicode_test() ->
 		 "b: " ++ UTF8CharList]),
     ?assertEqual(
        {ok, [{a, UTF8CharAtom}, {b, UTF8CharBin}]},
-       yconf:parse(File, #{a => yconf:atom(),
-			   b => yconf:binary()},
+       yval:validate(File, #{a => yval:atom(),
+			   b => yval:binary()},
 		   [plain_as_atom])),
     ?assertEqual(
        {ok, [{a, UTF8CharAtom}, {b, UTF8CharBin}]},
-       yconf:parse(File, #{a => yconf:atom(),
-			   b => yconf:binary()})).
+       yval:validate(File, #{a => yval:atom(),
+			   b => yval:binary()})).
 
 stop_test() ->
-    ?assertEqual(ok, yconf:stop()).
+    ?assertEqual(ok, yval:stop()).
 
 %%%===================================================================
 %%% Internal functions
@@ -1137,4 +1033,4 @@ file(FileName, Data) ->
     Path.
 
 test_format_error({error, Why, Ctx}) ->
-    ?assertMatch([_|_], yconf:format_error(Why, Ctx)).
+    ?assertMatch([_|_], yval:format_error(Why, Ctx)).
