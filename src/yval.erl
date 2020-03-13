@@ -36,6 +36,7 @@
 -export([path/0, binary_sep/1]).
 -export([beam/0, beam/1, base64/0]).
 -export([timeout/1, timeout/2]).
+-export([rfc3339_time/1]).
 -export([term/0, percent/0, percent/2]).
 %% Composite types
 -export([list/1, list/2]).
@@ -48,6 +49,7 @@
 
 -type infinity() :: infinity | infinite | unlimited.
 -type timeout_unit() :: millisecond | second | minute | hour | day.
+-type time_unit() :: microsecond | millisecond | nanosecond | second.
 -type exports() :: [{atom(), arity()} | [{atom(), arity()}]].
 -type options() :: [{atom(), term()}] |
 		   #{atom() => term()} |
@@ -467,6 +469,17 @@ timeout(Unit, Inf) ->
 	    to_timeout(Val, Unit, Inf)
     end.
 
+-spec rfc3339_time(time_unit()) -> validator(non_neg_integer()).
+rfc3339_time(Unit) ->
+    fun(Val) ->
+            S = to_string(Val),
+            try calendar:rfc3339_to_system_time(S, [{unit, Unit}]) of
+                Int -> Int
+            catch _:_ ->
+                    {bad_rfc3339_time, S}
+            end
+    end.
+
 -spec re() -> validator(re:mp()).
 re() ->
     re([]).
@@ -738,6 +751,8 @@ format_error({bad_timeout_unit, Bad}) ->
     format("Unexpected timeout unit: ~s", [Bad]);
 format_error({bad_timeout_min, Unit}) ->
     format("Timeout must not be shorter than one ~s", [Unit]);
+format_error({bad_rfc3339_time, S}) ->
+    format("Expected RFC 3339 timestamp, got: ~s", [S]);
 format_error({bad_url, empty_host, URL}) ->
     format("Empty hostname in the URL: ~s", [URL]);
 format_error({bad_url, {unsupported_scheme, Scheme}, URL}) ->
