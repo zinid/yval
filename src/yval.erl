@@ -772,15 +772,13 @@ format_error({create_file, Why, Path}) ->
     format("Failed to open file '~s' for writing: ~s",
 	   [Path, file:format_error(Why)]);
 format_error({disallowed_option, Opt}) ->
-    format("Option '~s' is not allowed in this context", [Opt]);
+    format("Parameter '~s' is not allowed in this context", [Opt]);
 format_error({duplicated_key, Key}) ->
     format("Duplicated key: ~s", [Key]);
 format_error({duplicated_value, Val}) ->
     format("Duplicated value: ~s", [format_yaml(Val)]);
 format_error({duplicated_option, Opt}) ->
-    format("Duplicated option: ~s", [Opt]);
-format_error({duplicated_macro, Name}) ->
-    format("Duplicated macro: ~s", [Name]);
+    format("Duplicated parameter: ~s", [Opt]);
 format_error(empty_atom) ->
     format("Empty string is not allowed", []);
 format_error(empty_binary) ->
@@ -790,7 +788,7 @@ format_error(empty_list) ->
 format_error(empty_string) ->
     format("Empty string is not allowed", []);
 format_error({missing_option, Opt}) ->
-    format("Missing required option: ~s", [Opt]);
+    format("Missing required parameter: ~s", [Opt]);
 format_error({nomatch, Regexp, Data}) ->
     format("String '~s' doesn't match regular expression: ~s",
 	   [Data, Regexp]);
@@ -801,19 +799,19 @@ format_error({read_file, Why, Path}) ->
     format("Failed to read file '~s': ~s",
 	   [Path, file:format_error(Why)]);
 format_error({unknown_option, [], Opt}) ->
-    format("Unknown option: ~s. There are no available options", [Opt]);
+    format("Unknown parameter: ~s. There are no available parameters", [Opt]);
 format_error({unknown_option, Known, Opt}) ->
-    format("Unknown option: ~s. Did you mean '~s'? ~s",
+    format("Unknown parameter: ~s. Did you mean '~s'? ~s",
            [Opt, best_match(Opt, Known),
-            format_known("Available options", Known)]);
+            format_known("Available parameters", Known)]);
 format_error(Unexpected) ->
     format("Unexpected error reason: ~p", [Unexpected]).
 
 -spec format_ctx(ctx()) -> string().
 format_ctx([]) ->
-    "Configuration error";
+    "Validation error";
 format_ctx([_|_] = Ctx) ->
-    format("Invalid value of option ~s",
+    format("Invalid value of parameter '~s'",
 	   [string:join(
 	      lists:map(
 		fun(A) when is_atom(A) ->
