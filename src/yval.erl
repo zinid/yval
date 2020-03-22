@@ -76,12 +76,6 @@
 -export_type([validator/0, validator/1, validators/0]).
 -export_type([error_return/0, error_reason/0, ctx/0]).
 
--callback options() -> validators().
--callback defaults() -> #{atom() => term()}.
--callback required() -> [atom(),...].
-
--optional_callbacks([defaults/0, required/0]).
-
 %%%===================================================================
 %%% API
 %%%===================================================================
