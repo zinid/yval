@@ -63,6 +63,7 @@
 -type yaml_map() :: [{yaml_val(), yaml()}].
 -type yaml() :: yaml_val() | yaml_list() | yaml_map().
 -type validator_option() :: {required, [atom()]} |
+                            {defaults, #{atom() => term()}} |
 			    {disallowed, [atom()]} |
 			    unique | {unique, boolean()} |
 			    {return, return_type()}.
@@ -655,12 +656,13 @@ options(Validators) ->
 options(Validators, Options) ->
     fun(Opts) when is_list(Opts) ->
 	    Required = proplists:get_value(required, Options, []),
+            Defaults = proplists:get_value(defaults, Options, #{}),
 	    Disallowed = proplists:get_value(disallowed, Options, []),
 	    CheckDups = proplists:get_bool(unique, Options),
 	    Return = proplists:get_value(return, Options, list),
 	    DefaultValidator = maps:get('_', Validators, undefined),
 	    validate_options(Opts, Validators, DefaultValidator,
-			     Required, Disallowed, CheckDups, Return);
+			     Required, Defaults, Disallowed, CheckDups, Return);
        (Bad) ->
 	    fail({bad_map, Bad})
     end.
@@ -1102,17 +1104,18 @@ prep_path(Path0) ->
     end.
 
 -spec validate_options(list(), validators(), validator() | undefined,
-		       [atom()], [atom()], boolean(), return_type()) -> options().
+		       [atom()], #{atom() => term()}, [atom()],
+                       boolean(), return_type()) -> options().
 validate_options(Opts, Validators, DefaultValidator,
-		 Required, Disallowed, CheckDups, Return) ->
+		 Required, Defaults, Disallowed, CheckDups, Return) ->
     validate_options(Opts, Validators, DefaultValidator,
-		     Required, Disallowed, CheckDups, Return, []).
+		     Required, Defaults, Disallowed, CheckDups, Return, []).
 
 -spec validate_options(list(), validators(), validator() | undefined,
-		       [atom()], [atom()], boolean(),
+		       [atom()], #{atom() => term()}, [atom()], boolean(),
 		       return_type(), options()) -> options().
 validate_options([{O, Val}|Opts], Validators, DefaultValidator,
-		 Required, Disallowed, CheckDups, Return, Acc) ->
+		 Required, Defaults, Disallowed, CheckDups, Return, Acc) ->
     Opt = to_atom(O),
     case lists:member(Opt, Disallowed) of
 	true -> fail({disallowed_option, Opt});
@@ -1128,21 +1131,21 @@ validate_options([{O, Val}|Opts], Validators, DefaultValidator,
 			    Required1 = proplists:delete(Opt, Required),
 			    Acc1 = [{Opt, validate_option(Opt, Val, Validator)}|Acc],
 			    validate_options(Opts, Validators, DefaultValidator,
-					     Required1, Disallowed, CheckDups,
-					     Return, Acc1)
+					     Required1, Defaults, Disallowed,
+                                             CheckDups, Return, Acc1)
 		    end
 	    end
     end;
-validate_options([], _, _, [], _, _, Return, Acc) ->
+validate_options([], _, _, [], Defaults, _, _, Return, Acc) ->
     case Return of
-	list -> lists:reverse(Acc);
-	map -> maps:from_list(Acc);
-	dict -> dict:from_list(Acc);
-	orddict -> orddict:from_list(Acc)
+        list -> apply_defaults(lists:reverse(Acc), Defaults);
+        map -> maps:merge(Defaults, maps:from_list(Acc));
+        dict -> dict:from_list(apply_defaults(Acc, Defaults));
+        orddict -> orddict:from_list(apply_defaults(Acc, Defaults))
     end;
-validate_options([], _, _, [Required|_], _, _, _, _) ->
+validate_options([], _, _, [Required|_], _,  _, _, _, _) ->
     fail({missing_option, Required});
-validate_options(Bad, _, _, _, _, _, _, _) ->
+validate_options(Bad, _, _, _, _, _, _, _, _) ->
     fail({bad_map, Bad}).
 
 -spec validate_option(atom(), yaml(), validator(T)) -> T.
@@ -1152,6 +1155,18 @@ validate_option(Opt, Val, Validator) ->
     Ret = Validator(Val),
     put_ctx(Ctx),
     Ret.
+
+-spec apply_defaults([{atom(), T}], #{atom() => T}) -> [{atom(), T}].
+apply_defaults(Opts, Defaults) ->
+    case maps:size(Defaults) of
+        0 -> Opts;
+        _ ->
+            Rest = lists:foldl(
+                     fun({Opt, _}, Acc) ->
+                             maps:remove(Opt, Acc)
+                     end, Defaults, Opts),
+            Opts ++ maps:to_list(Rest)
+    end.
 
 -spec best_match(atom() | binary() | string(),
                  [atom() | binary() | string()]) -> string().
