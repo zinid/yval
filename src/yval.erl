@@ -71,7 +71,6 @@
 -type validators() :: #{atom() => validator()}.
 -type error_reason() :: term().
 -type error_return() :: {error, error_reason(), ctx()}.
--type distance_cache() :: #{{string(), string()} => non_neg_integer()}.
 
 -export_type([validator/0, validator/1, validators/0]).
 -export_type([error_return/0, error_reason/0, ctx/0]).
@@ -678,10 +677,8 @@ format_error({bad_base64, _}) ->
 format_error({bad_cwd, Why}) ->
     format("Failed to get current directory name: ~s",
            [file:format_error(Why)]);
-format_error({bad_enum, Known, Bad}) ->
-    format("Unexpected value: ~s. Did you mean '~s'? ~s",
-           [Bad, best_match(Bad, Known),
-            format_known("Possible values", Known)]);
+format_error({bad_enum, _Known, Bad}) ->
+    format("Unexpected value: ~s", [Bad]);
 format_error({bad_export, {F, A}, Mod}) ->
     format("Module '~s' doesn't export function ~s/~B", [Mod, F, A]);
 format_error({bad_glob, {Reason, _}, _}) ->
@@ -786,10 +783,8 @@ format_error({read_file, Why, Path}) ->
            [Path, file:format_error(Why)]);
 format_error({unknown_option, [], Opt}) ->
     format("Unknown parameter: ~s. There are no available parameters", [Opt]);
-format_error({unknown_option, Known, Opt}) ->
-    format("Unknown parameter: ~s. Did you mean '~s'? ~s",
-           [Opt, best_match(Opt, Known),
-            format_known("Available parameters", Known)]);
+format_error({unknown_option, _Known, Opt}) ->
+    format("Unknown parameter: ~s", [Opt]);
 format_error(Unexpected) ->
     format("Unexpected error reason: ~p", [Unexpected]).
 
@@ -852,20 +847,6 @@ format_yaml(Y) ->
         nomatch -> S;
         _ -> [io_lib:nl(), S]
     end.
-
--spec format_known(string(), [atom()]) -> iolist().
-format_known(_, Known) when length(Known) > 20 ->
-    "";
-format_known(Prefix, Known) ->
-    [Prefix, " are: ", format_join(Known)].
-
--spec format_join([atom()|string()]) -> iolist().
-format_join([]) ->
-    "(empty)";
-format_join([H|_] = L) when is_atom(H) ->
-    format_join([atom_to_list(A) || A <- L]);
-format_join(L) ->
-    lists:join(", ", lists:sort(L)).
 
 %%%===================================================================
 %%% Internal functions
@@ -1156,38 +1137,6 @@ apply_defaults(Opts, Defaults) ->
                              maps:remove(Opt, Acc)
                      end, Defaults, Opts),
             Opts ++ maps:to_list(Rest)
-    end.
-
--spec best_match(atom() | binary() | string(),
-                 [atom() | binary() | string()]) -> string().
-best_match(Pattern, []) ->
-    Pattern;
-best_match(Pattern, Opts) ->
-    String = to_string(Pattern),
-    {Ds, _} = lists:mapfoldl(
-                fun(Opt, Cache) ->
-                        SOpt = to_string(Opt),
-                        {Distance, Cache1} = ld(String, SOpt, Cache),
-                        {{Distance, SOpt}, Cache1}
-                end, #{}, Opts),
-    element(2, lists:min(Ds)).
-
-%% Levenshtein distance
--spec ld(string(), string(), distance_cache()) -> {non_neg_integer(), distance_cache()}.
-ld([] = S, T, Cache) ->
-    {length(T), maps:put({S, T}, length(T), Cache)};
-ld(S, [] = T, Cache) ->
-    {length(S), maps:put({S, T}, length(S), Cache)};
-ld([X|S], [X|T], Cache) ->
-    ld(S, T, Cache);
-ld([_|ST] = S, [_|TT] = T, Cache) ->
-    try {maps:get({S, T}, Cache), Cache}
-    catch _:{badkey, _} ->
-            {L1, C1} = ld(S, TT, Cache),
-            {L2, C2} = ld(ST, T, C1),
-            {L3, C3} = ld(ST, TT, C2),
-            L = 1 + lists:min([L1, L2, L3]),
-            {L, maps:put({S, T}, L, C3)}
     end.
 
 %%%===================================================================
