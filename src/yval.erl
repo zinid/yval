@@ -18,7 +18,6 @@
 -module(yval).
 
 %% API
--export([start/0, stop/0]).
 -export([validate/2, fail/2]).
 -export([format_error/1, format_error/2, format_ctx/1]).
 %% Simple types
@@ -52,8 +51,8 @@
 -type time_unit() :: microsecond | millisecond | nanosecond | second.
 -type exports() :: [{atom(), arity()} | [{atom(), arity()}]].
 -type options() :: [{atom(), term()}] |
-		   #{atom() => term()} |
-		   dict:dict(atom(), term()).
+                   #{atom() => term()} |
+                   dict:dict(atom(), term()).
 -type return_type() :: list | map | dict | orddict.
 -type unique_opt() :: unique | {unique, boolean()}.
 -type sorted_opt() :: sorted | {sorted, boolean()}.
@@ -64,9 +63,9 @@
 -type yaml() :: yaml_val() | yaml_list() | yaml_map().
 -type validator_option() :: {required, [atom()]} |
                             {defaults, #{atom() => term()}} |
-			    {disallowed, [atom()]} |
-			    unique | {unique, boolean()} |
-			    {return, return_type()}.
+                            {disallowed, [atom()]} |
+                            unique | {unique, boolean()} |
+                            {return, return_type()}.
 -type validator() :: fun((yaml()) -> term()).
 -type validator(T) :: fun((yaml()) -> T).
 -type validators() :: #{atom() => validator()}.
@@ -80,23 +79,14 @@
 %%%===================================================================
 %%% API
 %%%===================================================================
-start() ->
-    case application:ensure_all_started(?MODULE) of
-	{ok, _} -> ok;
-	Err -> Err
-    end.
-
-stop() ->
-    ok.
-
 -spec validate(validator(), yaml()) -> {ok, any()} | error_return().
 validate(Validator, Y) ->
     try {ok, Validator(Y)}
     catch _:{?MODULE, Why, Ctx} ->
-	    {error, Why, Ctx};
-	  Class:Reason:Stacktrace ->
-	    _ = erase_ctx(),
-	    erlang:raise(Class, Reason, Stacktrace)
+            {error, Why, Ctx};
+          Class:Reason:Stacktrace ->
+            _ = erase_ctx(),
+            erlang:raise(Class, Reason, Stacktrace)
     end.
 
 -spec fail(term(), term()) -> no_return().
@@ -109,65 +99,65 @@ fail(Tag, Reason) ->
 -spec enum([atom() | binary()]) -> validator(atom() | binary()).
 enum([H|_] = List) when is_atom(H); is_binary(H) ->
     fun(Val) ->
-	    Member = if is_binary(H) -> to_binary(Val);
-			is_atom(H) -> to_existing_atom(Val)
-		     end,
-	    case lists:member(Member, List) of
-		true -> Member;
-		false -> fail({bad_enum, List, Member})
-	    end
+            Member = if is_binary(H) -> to_binary(Val);
+                        is_atom(H) -> to_existing_atom(Val)
+                     end,
+            case lists:member(Member, List) of
+                true -> Member;
+                false -> fail({bad_enum, List, Member})
+            end
     end.
 
 -spec bool() -> validator(boolean()).
 bool() ->
     fun(Val) ->
-	    case to_existing_atom(Val) of
-		on -> true;
-		off -> false;
-		yes -> true;
-		no -> false;
-		y -> true;
-		n -> false;
-		true -> true;
-		false -> false;
-		Bad -> fail({bad_bool, Bad})
-	    end
+            case to_existing_atom(Val) of
+                on -> true;
+                off -> false;
+                yes -> true;
+                no -> false;
+                y -> true;
+                n -> false;
+                true -> true;
+                false -> false;
+                Bad -> fail({bad_bool, Bad})
+            end
     end.
 
 -spec pos_int() -> validator(pos_integer()).
 pos_int() ->
     fun(Val) ->
-	    case to_int(Val) of
-		I when I>0 -> I;
-		Bad -> fail({bad_pos_int, Bad})
-	    end
+            case to_int(Val) of
+                I when I>0 -> I;
+                Bad -> fail({bad_pos_int, Bad})
+            end
     end.
 
 -spec pos_int(infinity()) -> validator(pos_integer() | infinity()).
 pos_int(Inf) when Inf == infinity; Inf == infinite; Inf == unlimited ->
     fun(Val) ->
-	    case to_int(Val, Inf) of
-		I when I>0 -> I;
-	        Bad -> fail({bad_pos_int, Inf, Bad})
-	    end
+            case to_int(Val, Inf) of
+                I when I>0 -> I;
+                Bad -> fail({bad_pos_int, Inf, Bad})
+            end
     end.
 
 -spec non_neg_int() -> validator(non_neg_integer()).
 non_neg_int() ->
     fun(Val) ->
-	    case to_int(Val) of
-		I when I>=0 -> I;
-		Bad -> fail({bad_non_neg_int, Bad})
-	    end
+            case to_int(Val) of
+                I when I>=0 -> I;
+                Bad -> fail({bad_non_neg_int, Bad})
+            end
     end.
 
 -spec non_neg_int(infinity()) -> validator(non_neg_integer() | infinity()).
 non_neg_int(Inf) when Inf == infinity; Inf == infinite; Inf == unlimited ->
     fun(Val) ->
-	    case to_int(Val, Inf) of
-		I when I>=0 -> I;
-		Bad -> fail({bad_non_neg_int, Inf, Bad})
-	    end
+            case to_int(Val, Inf) of
+                I when I>=0 -> I;
+                Bad -> fail({bad_non_neg_int, Inf, Bad})
+            end
     end.
 
 -spec int() -> validator(integer()).
@@ -179,10 +169,10 @@ int(Min, Max) when is_integer(Min) andalso
                    (is_integer(Max) orelse Max == infinity) andalso
                    Min =< Max ->
     fun(Val) ->
-	    case to_int(Val) of
-		I when I>=Min, I=<Max -> I;
-		Bad -> fail({bad_int, Min, Max, Bad})
-	    end
+            case to_int(Val) of
+                I when I>=Min, I=<Max -> I;
+                Bad -> fail({bad_int, Min, Max, Bad})
+            end
     end.
 
 -spec number(number()) -> validator(number()).
@@ -194,10 +184,10 @@ number(Min, Max) when is_number(Min) andalso
                       (is_number(Max) orelse Max == infinity) andalso
                       Min =< Max ->
     fun(Val) ->
-	    case to_number(Val) of
-		N when N >= Min, N =< Max -> N;
-		Bad -> fail({bad_number, Min, Max, Bad})
-	    end
+            case to_number(Val) of
+                N when N >= Min, N =< Max -> N;
+                Bad -> fail({bad_number, Min, Max, Bad})
+            end
     end.
 
 -spec pos_number() -> validator(number()).
@@ -239,14 +229,14 @@ binary() ->
 binary(Regexp) ->
     binary(Regexp, []).
 
--spec binary(iodata(), [re:compile_option()]) -> validator(binary()).
+-spec binary(iodata(), [proplists:property()]) -> validator(binary()).
 binary(Regexp, Opts) when is_list(Regexp) orelse is_binary(Regexp) ->
     fun(Val) ->
-	    Bin = to_binary(Val),
-	    case re:run(Bin, Regexp, Opts) of
-		{match, _} -> Bin;
-		nomatch -> fail({nomatch, Regexp, Bin})
-	    end
+            Bin = to_binary(Val),
+            case re:run(Bin, Regexp, Opts) of
+                {match, _} -> Bin;
+                nomatch -> fail({nomatch, Regexp, Bin})
+            end
     end.
 
 -spec atom() -> validator(atom()).
@@ -261,14 +251,14 @@ string() ->
 string(Regexp) ->
     string(Regexp, []).
 
--spec string(iodata(), [re:compile_option()]) -> validator(string()).
+-spec string(iodata(), [proplists:property()]) -> validator(string()).
 string(Regexp, Opts) when is_list(Regexp) orelse is_binary(Regexp) ->
     fun(Val) ->
-	    Str = to_string(Val),
-	    case re:run(Str, Regexp, Opts) of
-		{match, _} -> Str;
-		nomatch -> fail({nomatch, Regexp, Str})
-	    end
+            Str = to_string(Val),
+            case re:run(Str, Regexp, Opts) of
+                {match, _} -> Str;
+                nomatch -> fail({nomatch, Regexp, Str})
+            end
     end.
 
 -spec term() -> validator(term()).
@@ -296,11 +286,11 @@ term() ->
 -spec binary_sep(iodata()) -> validator([binary()]).
 binary_sep(Sep) ->
     fun(Val) ->
-	    Bin = to_binary(Val),
-	    lists:filtermap(
-	      fun(<<>>) -> false;
-		 (S) -> {true, S}
-	      end, re:split(Bin, Sep))
+            Bin = to_binary(Val),
+            lists:filtermap(
+              fun(<<>>) -> false;
+                 (S) -> {true, S}
+              end, re:split(Bin, Sep))
     end.
 
 -spec path() -> validator(binary()).
@@ -314,30 +304,30 @@ file() ->
 -spec file(read | write) -> validator(binary()).
 file(read) ->
     fun(Val) ->
-	    Path = prep_path(Val),
-	    case file:open(Path, [read]) of
-		{ok, Fd} ->
-		    _ = file:close(Fd),
-		    Path;
-		{error, Why} ->
-		    fail({read_file, Why, Path})
-	    end
+            Path = prep_path(Val),
+            case file:open(Path, [read]) of
+                {ok, Fd} ->
+                    _ = file:close(Fd),
+                    Path;
+                {error, Why} ->
+                    fail({read_file, Why, Path})
+            end
     end;
 file(write) ->
     fun(Val) ->
-	    Path = prep_path(Val),
-	    case filelib:ensure_dir(Path) of
-		ok ->
-		    case file:open(Path, [append]) of
-			{ok, Fd} ->
-			    _ = file:close(Fd),
-			    Path;
-			{error, Why} ->
-			    fail({create_file, Why, Path})
-		    end;
-		{error, Why} ->
-		    fail({create_dir, Why, filename:dirname(Path)})
-	    end
+            Path = prep_path(Val),
+            case filelib:ensure_dir(Path) of
+                ok ->
+                    case file:open(Path, [append]) of
+                        {ok, Fd} ->
+                            _ = file:close(Fd),
+                            Path;
+                        {error, Why} ->
+                            fail({create_file, Why, Path})
+                    end;
+                {error, Why} ->
+                    fail({create_dir, Why, filename:dirname(Path)})
+            end
     end.
 
 -spec directory() -> validator(binary()).
@@ -347,28 +337,28 @@ directory() ->
 -spec directory(read | write) -> validator(binary()).
 directory(read) ->
     fun(Val) ->
-	    Path = prep_path(Val),
-	    case filelib:is_dir(Path) of
-		true ->
-		    Path;
-		false ->
-		    case file:list_dir(Path) of
-			{error, Why} ->
-			    fail({read_dir, Why, Path});
-			{ok, _} ->
-			    Path
-		    end
-	    end
+            Path = prep_path(Val),
+            case filelib:is_dir(Path) of
+                true ->
+                    Path;
+                false ->
+                    case file:list_dir(Path) of
+                        {error, Why} ->
+                            fail({read_dir, Why, Path});
+                        {ok, _} ->
+                            Path
+                    end
+            end
     end;
 directory(write) ->
     fun(Val) ->
-	    Path = prep_path(Val),
-	    case filelib:ensure_dir(filename:join(Path, "foo")) of
-		ok ->
-		    Path;
-		{error, Why} ->
-		    fail({create_dir, Why, Path})
-	    end
+            Path = prep_path(Val),
+            case filelib:ensure_dir(filename:join(Path, "foo")) of
+                ok ->
+                    Path;
+                {error, Why} ->
+                    fail({create_dir, Why, Path})
+            end
     end.
 
 -spec url() -> validator(binary()).
@@ -378,74 +368,74 @@ url() ->
 -spec url([atom()]) -> validator(binary()).
 url(Schemes) ->
     fun(Val) ->
-	    URL = to_binary(Val),
-	    case http_uri:parse(to_string(URL)) of
-		{ok, {_, _, Host, _, _, _}} when Host == ""; Host == <<"">> ->
-		    fail({bad_url, empty_host, URL});
-		{ok, {_, _, _, Port, _, _}} when Port =< 0 orelse Port >= 65536 ->
-		    fail({bad_url, bad_port, URL});
-		{ok, {Scheme, _, _, _, _, _}} when Schemes /= [] ->
-		    case lists:member(Scheme, Schemes) of
-			true -> URL;
-			false ->
-			    fail({bad_url, {unsupported_scheme, Scheme}, URL})
-		    end;
-		{ok, _} ->
-		    URL;
-		{error, Why} ->
-		    fail({bad_url, Why, URL})
-	    end
+            URL = to_binary(Val),
+            case http_uri:parse(to_string(URL)) of
+                {ok, {_, _, Host, _, _, _}} when Host == ""; Host == <<"">> ->
+                    fail({bad_url, empty_host, URL});
+                {ok, {_, _, _, Port, _, _}} when Port =< 0 orelse Port >= 65536 ->
+                    fail({bad_url, bad_port, URL});
+                {ok, {Scheme, _, _, _, _, _}} when Schemes /= [] ->
+                    case lists:member(Scheme, Schemes) of
+                        true -> URL;
+                        false ->
+                            fail({bad_url, {unsupported_scheme, Scheme}, URL})
+                    end;
+                {ok, _} ->
+                    URL;
+                {error, Why} ->
+                    fail({bad_url, Why, URL})
+            end
     end.
 
 -spec octal() -> validator(non_neg_integer()).
 octal() ->
     fun(Val) ->
-	    Bin = to_binary(Val),
-	    try binary_to_integer(Bin, 8)
-	    catch _:_ -> fail({bad_octal, Bin})
-	    end
+            Bin = to_binary(Val),
+            try binary_to_integer(Bin, 8)
+            catch _:_ -> fail({bad_octal, Bin})
+            end
     end.
 
 -spec ipv4() -> validator(inet:ip4_address()).
 ipv4() ->
     fun(Val) ->
-	    S = to_string(Val),
-	    case inet:parse_ipv4_address(to_string(Val)) of
-		{ok, IP} -> IP;
-		_ -> fail({bad_ipv4, S})
-	    end
+            S = to_string(Val),
+            case inet:parse_ipv4_address(to_string(Val)) of
+                {ok, IP} -> IP;
+                _ -> fail({bad_ipv4, S})
+            end
     end.
 
 -spec ipv6() -> validator(inet:ip6_address()).
 ipv6() ->
     fun(Val) ->
-	    S = to_string(Val),
-	    case inet:parse_ipv6strict_address(S) of
-		{ok, IP} -> IP;
-		_ -> fail({bad_ipv6, S})
-	    end
+            S = to_string(Val),
+            case inet:parse_ipv6strict_address(S) of
+                {ok, IP} -> IP;
+                _ -> fail({bad_ipv6, S})
+            end
     end.
 
 -spec ip() -> validator(inet:ip_address()).
 ip() ->
     fun(Val) ->
-	    S = to_string(Val),
-	    case inet:parse_address(S) of
-		{ok, IP} -> IP;
-		_ -> fail({bad_ip, S})
-	    end
+            S = to_string(Val),
+            case inet:parse_address(S) of
+                {ok, IP} -> IP;
+                _ -> fail({bad_ip, S})
+            end
     end.
 
 -spec ip_mask() -> validator(
-		     {inet:ip4_address(), 0..32} |
-		     {inet:ip6_address(), 0..128}).
+                     {inet:ip4_address(), 0..32} |
+                     {inet:ip6_address(), 0..128}).
 ip_mask() ->
     fun(Val) ->
-	    S = to_string(Val),
-	    case parse_ip_netmask(S) of
-		{ok, IP, Mask} -> {IP, Mask};
-		_ -> fail({bad_ip_mask, S})
-	    end
+            S = to_string(Val),
+            case parse_ip_netmask(S) of
+                {ok, IP, Mask} -> {IP, Mask};
+                _ -> fail({bad_ip_mask, S})
+            end
     end.
 
 -spec port() -> validator(1..65535).
@@ -455,13 +445,13 @@ port() ->
 -spec timeout(timeout_unit()) -> validator(pos_integer()).
 timeout(Unit) ->
     fun(Val) ->
-	    to_timeout(Val, Unit)
+            to_timeout(Val, Unit)
     end.
 
 -spec timeout(timeout_unit(), infinity()) -> validator(pos_integer() | infinity()).
 timeout(Unit, Inf) ->
     fun(Val) ->
-	    to_timeout(Val, Unit, Inf)
+            to_timeout(Val, Unit, Inf)
     end.
 
 -spec rfc3339_time(time_unit()) -> validator(non_neg_integer()).
@@ -475,32 +465,32 @@ rfc3339_time(Unit) ->
             end
     end.
 
--spec re() -> validator(re:mp()).
+-spec re() -> validator().
 re() ->
     re([]).
 
--spec re([re:compile_option()]) -> validator(re:mp()).
+-spec re([proplists:property()]) -> validator().
 re(Opts) ->
     fun(Val) ->
-	    Bin = to_binary(Val),
-	    case re:compile(Bin, Opts) of
-		{ok, RE} -> RE;
-		{error, Why} -> fail({bad_regexp, Why, Bin})
-	    end
+            Bin = to_binary(Val),
+            case re:compile(Bin, Opts) of
+                {ok, RE} -> RE;
+                {error, Why} -> fail({bad_regexp, Why, Bin})
+            end
     end.
 
--spec glob() -> validator(re:mp()).
+-spec glob() -> validator().
 glob() ->
     glob([]).
 
--spec glob([re:compile_option()]) -> validator(re:mp()).
+-spec glob([proplists:property()]) -> validator().
 glob(Opts) ->
     fun(Val) ->
-	    S = to_string(Val),
-	    case re:compile(sh_to_awk(S), Opts) of
-		{ok, RE} -> RE;
-		{error, Why} -> fail({bad_glob, Why, S})
-	    end
+            S = to_string(Val),
+            case re:compile(sh_to_awk(S), Opts) of
+                {ok, RE} -> RE;
+                {error, Why} -> fail({bad_glob, Why, S})
+            end
     end.
 
 -spec beam() -> validator(module()).
@@ -510,50 +500,50 @@ beam() ->
 -spec beam(exports()) -> validator(module()).
 beam(Exports) ->
     fun(Val) ->
-	    Mod = to_atom(Val),
-	    case code:ensure_loaded(Mod) of
-		{module, Mod} ->
-		    lists:foreach(
-		      fun([]) ->
-			      ok;
-			 (L) when is_list(L) ->
-			      case lists:any(
-				     fun({F, A}) ->
-					     erlang:function_exported(Mod, F, A)
-				     end, L) of
-				  true -> ok;
-				  false -> fail({bad_export, hd(L), Mod})
-			      end;
-			 ({F, A}) ->
-			      case erlang:function_exported(Mod, F, A) of
-				  true -> ok;
-				  false -> fail({bad_export, {F, A}, Mod})
-			      end
-		      end, Exports),
-		    Mod;
-		_ ->
-		    fail({bad_module, Mod})
-	    end
+            Mod = to_atom(Val),
+            case code:ensure_loaded(Mod) of
+                {module, Mod} ->
+                    lists:foreach(
+                      fun([]) ->
+                              ok;
+                         (L) when is_list(L) ->
+                              case lists:any(
+                                     fun({F, A}) ->
+                                             erlang:function_exported(Mod, F, A)
+                                     end, L) of
+                                  true -> ok;
+                                  false -> fail({bad_export, hd(L), Mod})
+                              end;
+                         ({F, A}) ->
+                              case erlang:function_exported(Mod, F, A) of
+                                  true -> ok;
+                                  false -> fail({bad_export, {F, A}, Mod})
+                              end
+                      end, Exports),
+                    Mod;
+                _ ->
+                    fail({bad_module, Mod})
+            end
     end.
 
 -spec base64() -> validator(binary()).
 base64() ->
     fun(Val) ->
-	    B = to_binary(Val),
-	    try base64:decode(B)
-	    catch _:_ -> fail({bad_base64, B})
-	    end
+            B = to_binary(Val),
+            try base64:decode(B)
+            catch _:_ -> fail({bad_base64, B})
+            end
     end.
 
 -spec non_empty(validator(T)) -> validator(T).
 non_empty(Fun) ->
     fun(Val) ->
-	    case Fun(Val) of
-		'' -> fail(empty_atom);
-		<<"">> -> fail(empty_binary);
-		[] -> fail(empty_list);
-		Ret -> Ret
-	    end
+            case Fun(Val) of
+                '' -> fail(empty_atom);
+                <<"">> -> fail(empty_binary);
+                [] -> fail(empty_list);
+                Ret -> Ret
+            end
     end.
 
 -spec list(validator(T)) -> validator([T]).
@@ -563,21 +553,21 @@ list(Fun) ->
 -spec list(validator(T), [unique_opt() | sorted_opt()]) -> validator([T]).
 list(Fun, Opts) when ?is_validator(Fun) ->
     fun(L) when is_list(L) ->
-	    {L1, _} = lists:mapfoldl(
-			fun(Val, Pos) ->
-				Ctx = get_ctx(),
-				put_ctx([Pos|Ctx]),
-				Val1 = Fun(Val),
-				put_ctx(Ctx),
-				{Val1, Pos+1}
-			end, 1, L),
-	    L2 = unique(L1, Opts),
-	    case proplists:get_bool(sorted, Opts) of
-		true -> lists:sort(L2);
-		false -> L2
-	    end;
+            {L1, _} = lists:mapfoldl(
+                        fun(Val, Pos) ->
+                                Ctx = get_ctx(),
+                                put_ctx([Pos|Ctx]),
+                                Val1 = Fun(Val),
+                                put_ctx(Ctx),
+                                {Val1, Pos+1}
+                        end, 1, L),
+            L2 = unique(L1, Opts),
+            case proplists:get_bool(sorted, Opts) of
+                true -> lists:sort(L2);
+                false -> L2
+            end;
        (Bad) ->
-	    fail({bad_list, Bad})
+            fail({bad_list, Bad})
     end.
 
 -spec list_or_single(validator(T)) -> validator([T]).
@@ -587,9 +577,9 @@ list_or_single(Fun) ->
 -spec list_or_single(validator(T), [unique_opt() | sorted_opt()]) -> validator([T]).
 list_or_single(Fun, Opts) when ?is_validator(Fun) ->
     fun(L) when is_list(L) ->
-	    (list(Fun, Opts))(L);
+            (list(Fun, Opts))(L);
        (V) ->
-	    [Fun(V)]
+            [Fun(V)]
     end.
 
 -spec map(validator(T1), validator(T2)) -> validator([{T1, T2}] | #{T1 => T2}).
@@ -597,51 +587,51 @@ map(Fun1, Fun2) ->
     map(Fun1, Fun2, [{return, list}]).
 
 -spec map(validator(T1), validator(T2),
-	  [{return, return_type()} | unique_opt()]) ->
-		 validator([{T1, T2}] | #{T1 => T2} | dict:dict(T1, T2)).
+          [{return, return_type()} | unique_opt()]) ->
+                 validator([{T1, T2}] | #{T1 => T2} | dict:dict(T1, T2)).
 map(Fun1, Fun2, Opts) when ?is_validator(Fun1) andalso
-			   ?is_validator(Fun2) ->
+                           ?is_validator(Fun2) ->
     fun(L) when is_list(L) ->
-	    M1 = lists:map(
-		   fun({Key, Val}) ->
-			   Key1 = Fun1(Key),
-			   Ctx = get_ctx(),
-			   put_ctx([Key|Ctx]),
-			   Val1 = Fun2(Val),
-			   put_ctx(Ctx),
-			   {Key1, Val1};
-		      (_) ->
-			   fail({bad_map, L})
-		   end, L),
-	    M2 = unique(M1, Opts),
-	    case proplists:get_value(return, Opts, list) of
-		list -> M2;
-		map -> maps:from_list(M2);
-		orddict -> orddict:from_list(M2);
-		dict -> dict:from_list(M2)
-	    end;
+            M1 = lists:map(
+                   fun({Key, Val}) ->
+                           Key1 = Fun1(Key),
+                           Ctx = get_ctx(),
+                           put_ctx([Key|Ctx]),
+                           Val1 = Fun2(Val),
+                           put_ctx(Ctx),
+                           {Key1, Val1};
+                      (_) ->
+                           fail({bad_map, L})
+                   end, L),
+            M2 = unique(M1, Opts),
+            case proplists:get_value(return, Opts, list) of
+                list -> M2;
+                map -> maps:from_list(M2);
+                orddict -> orddict:from_list(M2);
+                dict -> dict:from_list(M2)
+            end;
        (Bad) ->
-	    fail({bad_map, Bad})
+            fail({bad_map, Bad})
     end.
 
 -spec either(atom(), validator(T)) -> validator(atom() | T);
-	    (validator(T1), validator(T2)) -> validator(T1 | T2).
+            (validator(T1), validator(T2)) -> validator(T1 | T2).
 either(Atom, Fun) when is_atom(Atom) andalso ?is_validator(Fun) ->
     either(enum([Atom]), Fun);
 either(Fun1, Fun2) when ?is_validator(Fun1) andalso
-			?is_validator(Fun2) ->
+                        ?is_validator(Fun2) ->
     fun(Val) ->
-	    Ctx = get_ctx(),
-	    try Fun1(Val)
-	    catch _:_ ->
-		    put_ctx(Ctx),
-		    Fun2(Val)
-	    end
+            Ctx = get_ctx(),
+            try Fun1(Val)
+            catch _:_ ->
+                    put_ctx(Ctx),
+                    Fun2(Val)
+            end
     end.
 
 -spec and_then(validator(T1), fun((T1) -> T2)) -> validator(T2).
 and_then(Fun, Then) when ?is_validator(Fun) andalso
-			 is_function(Then, 1) ->
+                         is_function(Then, 1) ->
     fun(Val) -> Then(Fun(Val)) end.
 
 -spec any() -> validator(yaml()).
@@ -655,16 +645,16 @@ options(Validators) ->
 -spec options(validators(), [validator_option()]) -> validator().
 options(Validators, Options) ->
     fun(Opts) when is_list(Opts) ->
-	    Required = proplists:get_value(required, Options, []),
+            Required = proplists:get_value(required, Options, []),
             Defaults = proplists:get_value(defaults, Options, #{}),
-	    Disallowed = proplists:get_value(disallowed, Options, []),
-	    CheckDups = proplists:get_bool(unique, Options),
-	    Return = proplists:get_value(return, Options, list),
-	    DefaultValidator = maps:get('_', Validators, undefined),
-	    validate_options(Opts, Validators, DefaultValidator,
-			     Required, Defaults, Disallowed, CheckDups, Return);
+            Disallowed = proplists:get_value(disallowed, Options, []),
+            CheckDups = proplists:get_bool(unique, Options),
+            Return = proplists:get_value(return, Options, list),
+            DefaultValidator = maps:get('_', Validators, undefined),
+            validate_options(Opts, Validators, DefaultValidator,
+                             Required, Defaults, Disallowed, CheckDups, Return);
        (Bad) ->
-	    fail({bad_map, Bad})
+            fail({bad_map, Bad})
     end.
 
 %%%===================================================================
@@ -687,7 +677,7 @@ format_error({bad_base64, _}) ->
     format("Invalid Base64 string", []);
 format_error({bad_cwd, Why}) ->
     format("Failed to get current directory name: ~s",
-	   [file:format_error(Why)]);
+           [file:format_error(Why)]);
 format_error({bad_enum, Known, Bad}) ->
     format("Unexpected value: ~s. Did you mean '~s'? ~s",
            [Bad, best_match(Bad, Known),
@@ -742,7 +732,7 @@ format_error({bad_timeout, Bad}) ->
     format("Expected positive integer, got ~s instead", [format_yaml_type(Bad)]);
 format_error({bad_timeout, Inf, Bad}) ->
     format("Expected positive integer or '~s', got ~s instead",
-	   [Inf, format_yaml_type(Bad)]);
+           [Inf, format_yaml_type(Bad)]);
 format_error({bad_timeout_unit, Bad}) ->
     format("Unexpected timeout unit: ~s", [Bad]);
 format_error({bad_timeout_min, Unit}) ->
@@ -763,10 +753,10 @@ format_error({bad_term, {LineNo, Module, Reason}}) ->
     format("Invalid Erlang term: at line ~B: ~s", [LineNo, Module:format_error(Reason)]);
 format_error({create_dir, Why, Path}) ->
     format("Failed to create directory '~s': ~s",
-	   [Path, file:format_error(Why)]);
+           [Path, file:format_error(Why)]);
 format_error({create_file, Why, Path}) ->
     format("Failed to open file '~s' for writing: ~s",
-	   [Path, file:format_error(Why)]);
+           [Path, file:format_error(Why)]);
 format_error({disallowed_option, Opt}) ->
     format("Parameter '~s' is not allowed in this context", [Opt]);
 format_error({duplicated_key, Key}) ->
@@ -787,13 +777,13 @@ format_error({missing_option, Opt}) ->
     format("Missing required parameter: ~s", [Opt]);
 format_error({nomatch, Regexp, Data}) ->
     format("String '~s' doesn't match regular expression: ~s",
-	   [Data, Regexp]);
+           [Data, Regexp]);
 format_error({read_dir, Why, Path}) ->
     format("Failed to read directory '~s': ~s",
-	   [Path, file:format_error(Why)]);
+           [Path, file:format_error(Why)]);
 format_error({read_file, Why, Path}) ->
     format("Failed to read file '~s': ~s",
-	   [Path, file:format_error(Why)]);
+           [Path, file:format_error(Why)]);
 format_error({unknown_option, [], Opt}) ->
     format("Unknown parameter: ~s. There are no available parameters", [Opt]);
 format_error({unknown_option, Known, Opt}) ->
@@ -808,18 +798,18 @@ format_ctx([]) ->
     "Validation error";
 format_ctx([_|_] = Ctx) ->
     format("Invalid value of parameter '~s'",
-	   [string:join(
-	      lists:map(
-		fun(A) when is_atom(A) ->
-			atom_to_list(A);
-		   (B) when is_binary(B) ->
-			"'" ++ binary_to_list(B) ++ "'";
-		   (I) when is_integer(I) ->
-			integer_to_list(I);
-		   (Unexpected) ->
-			lists:flatten(io_lib:format("~p", [Unexpected]))
-		end, Ctx),
-	      "->")]).
+           [string:join(
+              lists:map(
+                fun(A) when is_atom(A) ->
+                        atom_to_list(A);
+                   (B) when is_binary(B) ->
+                        "'" ++ binary_to_list(B) ++ "'";
+                   (I) when is_integer(I) ->
+                        integer_to_list(I);
+                   (Unexpected) ->
+                        lists:flatten(io_lib:format("~p", [Unexpected]))
+                end, Ctx),
+              "->")]).
 
 -spec format(iodata(), list()) -> string().
 format(Fmt, Args) ->
@@ -857,7 +847,7 @@ format_yaml(B) when is_atom(B) ->
 format_yaml(Y) ->
     S = try iolist_to_binary(Y)
         catch _:_ -> list_to_binary(io_lib:format("~p", [Y]))
-	end,
+        end,
     case binary:match(S, <<"\n">>) of
         nomatch -> S;
         _ -> [io_lib:nl(), S]
@@ -928,9 +918,9 @@ to_int(infinite, Inf) -> Inf;
 to_int(unlimited, Inf) -> Inf;
 to_int(B, Inf) when is_binary(B) ->
     try binary_to_existing_atom(B, latin1) of
-	A -> to_int(A, Inf)
+        A -> to_int(A, Inf)
     catch _:_ ->
-	    fail({bad_int, B})
+            fail({bad_int, B})
     end;
 to_int(Bad, _) ->
     fail({bad_int, Bad}).
@@ -956,22 +946,22 @@ to_timeout(A, Unit, Inf) when is_atom(A) ->
 to_timeout(B, Unit, Inf) when is_binary(B) ->
     S = binary_to_list(B),
     case string:to_integer(S) of
-	{error, _} when Inf /= undefined ->
-	    _ = (enum([infinite, infinity, unlimited]))(B),
-	    Inf;
-	{error, _} ->
-	    fail({bad_int, B});
-	{I, ""} when is_integer(I), I>0 ->
-	    to_ms(I, Unit);
-	{I, [_|_] = Suffix} when is_integer(I), I>0 ->
-	    case timeout_unit(Suffix) of
-		{ok, Unit1} -> to_ms(I, Unit1, Unit);
-		error -> fail({bad_timeout_unit, Suffix})
-	    end;
-	{I, _} when Inf == undefined ->
-	    fail({bad_pos_int, I});
-	{I, _} ->
-	    fail({bad_pos_int, Inf, I})
+        {error, _} when Inf /= undefined ->
+            _ = (enum([infinite, infinity, unlimited]))(B),
+            Inf;
+        {error, _} ->
+            fail({bad_int, B});
+        {I, ""} when is_integer(I), I>0 ->
+            to_ms(I, Unit);
+        {I, [_|_] = Suffix} when is_integer(I), I>0 ->
+            case timeout_unit(Suffix) of
+                {ok, Unit1} -> to_ms(I, Unit1, Unit);
+                error -> fail({bad_timeout_unit, Suffix})
+            end;
+        {I, _} when Inf == undefined ->
+            fail({bad_pos_int, I});
+        {I, _} ->
+            fail({bad_pos_int, Inf, I})
     end;
 to_timeout(Bad, _, Inf) when Inf == undefined ->
     fail({bad_timeout, Bad});
@@ -981,19 +971,19 @@ to_timeout(Bad, _, Inf) ->
 -spec to_ms(pos_integer(), timeout_unit()) -> pos_integer().
 to_ms(I, Unit) ->
     case Unit of
-	millisecond -> I;
-	second -> timer:seconds(I);
-	minute -> timer:minutes(I);
-	hour -> timer:hours(I);
-	day -> timer:hours(I*24)
+        millisecond -> I;
+        second -> timer:seconds(I);
+        minute -> timer:minutes(I);
+        hour -> timer:hours(I);
+        day -> timer:hours(I*24)
     end.
 
 -spec to_ms(pos_integer(), timeout_unit(), timeout_unit()) -> pos_integer().
 to_ms(I, Unit, MinUnit) ->
     MSecs = to_ms(I, Unit),
     case MSecs >= to_ms(1, MinUnit) of
-	true -> MSecs;
-	false -> fail({bad_timeout_min, MinUnit})
+        true -> MSecs;
+        false -> fail({bad_timeout_min, MinUnit})
     end.
 
 -spec timeout_unit(string()) -> {ok, timeout_unit()} | error.
@@ -1002,42 +992,42 @@ timeout_unit(S) ->
     if U == "ms"; U == "msec"; U == "msecs";
        U == "millisec"; U == "millisecs";
        U == "millisecond"; U == "milliseconds" ->
-	    {ok, millisecond};
+            {ok, millisecond};
        U == "s"; U == "sec"; U == "secs"; U == "second"; U == "seconds" ->
-	    {ok, second};
+            {ok, second};
        U == "m"; U == "min"; U == "mins"; U == "minute"; U == "minutes" ->
-	    {ok, minute};
+            {ok, minute};
        U == "h"; U == "hour"; U == "hours" ->
-	    {ok, hour};
+            {ok, hour};
        U == "d"; U == "day"; U == "days" ->
-	    {ok, day};
+            {ok, day};
        true ->
-	    error
+            error
     end.
 
 -spec unique(list(T), [proplists:property()]) -> list(T).
 unique(L, Opts) ->
     case proplists:get_bool(unique, Opts) of
-	true -> unique(L);
-	false -> L
+        true -> unique(L);
+        false -> L
     end.
 
 -spec unique(list(T)) -> list(T).
 unique([{_, _}|_] = Map) ->
     lists:foldr(
       fun({K, V}, Acc) ->
-	      case lists:keymember(K, 1, Acc) of
-		  true -> fail({duplicated_key, K});
-		  false -> [{K, V}|Acc]
-	      end
+              case lists:keymember(K, 1, Acc) of
+                  true -> fail({duplicated_key, K});
+                  false -> [{K, V}|Acc]
+              end
       end, [], Map);
 unique(L) ->
     lists:foldr(
       fun(X, Acc) ->
-	      case lists:member(X, Acc) of
-		  true -> fail({duplicated_value, X});
-		  false -> [X|Acc]
-	      end
+              case lists:member(X, Acc) of
+                  true -> fail({duplicated_value, X});
+                  false -> [X|Acc]
+              end
       end, [], L).
 
 -spec string_to_number(string()) -> number().
@@ -1053,34 +1043,34 @@ string_to_number(S) ->
     end.
 
 -spec parse_ip_netmask(string()) -> {ok, inet:ip4_address(), 0..32} |
-				    {ok, inet:ip6_address(), 0..128} |
-				    error.
+                                    {ok, inet:ip6_address(), 0..128} |
+                                    error.
 parse_ip_netmask(S) ->
     case string:tokens(S, "/") of
-	[IPStr] ->
-	    case inet:parse_address(IPStr) of
-		{ok, {_, _, _, _} = IP} -> {ok, IP, 32};
-		{ok, {_, _, _, _, _, _, _, _} = IP} -> {ok, IP, 128};
-		_ -> error
-	    end;
-	[IPStr, MaskStr] ->
-	    try list_to_integer(MaskStr) of
-		Mask when Mask >= 0 ->
-		    case inet:parse_address(IPStr) of
-			{ok, {_, _, _, _} = IP} when Mask =< 32 ->
-			    {ok, IP, Mask};
-			{ok, {_, _, _, _, _, _, _, _} = IP} when Mask =< 128 ->
-			    {ok, IP, Mask};
-			_ ->
-			    error
-		    end;
-		_ ->
-		    error
-	    catch _:_ ->
-		    error
-	    end;
-	_ ->
-	    error
+        [IPStr] ->
+            case inet:parse_address(IPStr) of
+                {ok, {_, _, _, _} = IP} -> {ok, IP, 32};
+                {ok, {_, _, _, _, _, _, _, _} = IP} -> {ok, IP, 128};
+                _ -> error
+            end;
+        [IPStr, MaskStr] ->
+            try list_to_integer(MaskStr) of
+                Mask when Mask >= 0 ->
+                    case inet:parse_address(IPStr) of
+                        {ok, {_, _, _, _} = IP} when Mask =< 32 ->
+                            {ok, IP, Mask};
+                        {ok, {_, _, _, _, _, _, _, _} = IP} when Mask =< 128 ->
+                            {ok, IP, Mask};
+                        _ ->
+                            error
+                    end;
+                _ ->
+                    error
+            catch _:_ ->
+                    error
+            end;
+        _ ->
+            error
     end.
 
 -spec fail(error_reason()) -> no_return().
@@ -1091,50 +1081,50 @@ fail(Reason) ->
 prep_path(Path0) ->
     Path1 = (non_empty(binary()))(Path0),
     case filename:pathtype(Path1) of
-	relative ->
-	    case file:get_cwd() of
-		{ok, CWD} ->
-		    filename:join(
-		      unicode:characters_to_binary(CWD), Path1);
-		{error, Reason} ->
-		    fail({bad_cwd, Reason})
-	    end;
-	_ ->
-	    Path1
+        relative ->
+            case file:get_cwd() of
+                {ok, CWD} ->
+                    filename:join(
+                      unicode:characters_to_binary(CWD), Path1);
+                {error, Reason} ->
+                    fail({bad_cwd, Reason})
+            end;
+        _ ->
+            Path1
     end.
 
 -spec validate_options(list(), validators(), validator() | undefined,
-		       [atom()], #{atom() => term()}, [atom()],
+                       [atom()], #{atom() => term()}, [atom()],
                        boolean(), return_type()) -> options().
 validate_options(Opts, Validators, DefaultValidator,
-		 Required, Defaults, Disallowed, CheckDups, Return) ->
+                 Required, Defaults, Disallowed, CheckDups, Return) ->
     validate_options(Opts, Validators, DefaultValidator,
-		     Required, Defaults, Disallowed, CheckDups, Return, []).
+                     Required, Defaults, Disallowed, CheckDups, Return, []).
 
 -spec validate_options(list(), validators(), validator() | undefined,
-		       [atom()], #{atom() => term()}, [atom()], boolean(),
-		       return_type(), options()) -> options().
+                       [atom()], #{atom() => term()}, [atom()], boolean(),
+                       return_type(), options()) -> options().
 validate_options([{O, Val}|Opts], Validators, DefaultValidator,
-		 Required, Defaults, Disallowed, CheckDups, Return, Acc) ->
+                 Required, Defaults, Disallowed, CheckDups, Return, Acc) ->
     Opt = to_atom(O),
     case lists:member(Opt, Disallowed) of
-	true -> fail({disallowed_option, Opt});
-	false ->
-	    case maps:get(Opt, Validators, DefaultValidator) of
-		undefined ->
-		    Allowed = maps:keys(Validators) -- Disallowed,
-		    fail({unknown_option, Allowed, Opt});
-		Validator ->
-		    case CheckDups andalso lists:keymember(Opt, 1, Acc) of
-			true -> fail({duplicated_option, Opt});
-			false ->
-			    Required1 = proplists:delete(Opt, Required),
-			    Acc1 = [{Opt, validate_option(Opt, Val, Validator)}|Acc],
-			    validate_options(Opts, Validators, DefaultValidator,
-					     Required1, Defaults, Disallowed,
+        true -> fail({disallowed_option, Opt});
+        false ->
+            case maps:get(Opt, Validators, DefaultValidator) of
+                undefined ->
+                    Allowed = maps:keys(Validators) -- Disallowed,
+                    fail({unknown_option, Allowed, Opt});
+                Validator ->
+                    case CheckDups andalso lists:keymember(Opt, 1, Acc) of
+                        true -> fail({duplicated_option, Opt});
+                        false ->
+                            Required1 = proplists:delete(Opt, Required),
+                            Acc1 = [{Opt, validate_option(Opt, Val, Validator)}|Acc],
+                            validate_options(Opts, Validators, DefaultValidator,
+                                             Required1, Defaults, Disallowed,
                                              CheckDups, Return, Acc1)
-		    end
-	    end
+                    end
+            end
     end;
 validate_options([], _, _, [], Defaults, _, _, Return, Acc) ->
     case Return of
@@ -1206,8 +1196,8 @@ ld([_|ST] = S, [_|TT] = T, Cache) ->
 -spec get_ctx() -> ctx().
 get_ctx() ->
     case get(yval_ctx) of
-	undefined -> [];
-	Opts -> Opts
+        undefined -> [];
+        Opts -> Opts
     end.
 
 -spec put_ctx(ctx()) -> ok.
@@ -1218,21 +1208,21 @@ put_ctx(Opts) ->
 -spec erase_ctx() -> ctx().
 erase_ctx() ->
     case erase(yval_ctx) of
-	Opts when is_list(Opts) -> lists:reverse(Opts);
-	_ -> []
+        Opts when is_list(Opts) -> lists:reverse(Opts);
+        _ -> []
     end.
 
 %%%===================================================================
 %%% Copied from xmerl_regexp.erl to avoid xmerl dependency
 %%%===================================================================
 -spec sh_to_awk(string()) -> string().
-sh_to_awk(Sh) -> "^(" ++ sh_to_awk_1(Sh).	%Fix the beginning
+sh_to_awk(Sh) -> "^(" ++ sh_to_awk_1(Sh).    %Fix the beginning
 
-sh_to_awk_1([$*|Sh]) ->				%This matches any string
+sh_to_awk_1([$*|Sh]) ->                %This matches any string
     ".*" ++ sh_to_awk_1(Sh);
-sh_to_awk_1([$?|Sh]) ->				%This matches any character
+sh_to_awk_1([$?|Sh]) ->                %This matches any character
     [$.|sh_to_awk_1(Sh)];
-sh_to_awk_1([$[,$^,$]|Sh]) ->			%This takes careful handling
+sh_to_awk_1([$[, $^, $]|Sh]) ->            %This takes careful handling
     "\\^" ++ sh_to_awk_1(Sh);
 %% Must move '^' to end.
 sh_to_awk_1("[^" ++ Sh) -> [$[|sh_to_awk_2(Sh, true)];
@@ -1241,13 +1231,13 @@ sh_to_awk_1([$[|Sh]) -> [$[|sh_to_awk_2(Sh, false)];
 sh_to_awk_1([C|Sh]) ->
     %% Unspecialise everything else which is not an escape character.
     case sh_special_char(C) of
-	true -> [$\\,C|sh_to_awk_1(Sh)];
-	false -> [C|sh_to_awk_1(Sh)]
+        true -> [$\\, C|sh_to_awk_1(Sh)];
+        false -> [C|sh_to_awk_1(Sh)]
     end;
-sh_to_awk_1([]) -> ")$".			%Fix the end
+sh_to_awk_1([]) -> ")$".            %Fix the end
 
 sh_to_awk_2([$]|Sh], UpArrow) -> [$]|sh_to_awk_3(Sh, UpArrow)];
-sh_to_awk_2(Sh, UpArrow) -> sh_to_awk_3(Sh, UpArrow).
+                       sh_to_awk_2(Sh, UpArrow) -> sh_to_awk_3(Sh, UpArrow).
 
 sh_to_awk_3([$]|Sh], true) -> "^]" ++ sh_to_awk_1(Sh);
 sh_to_awk_3([$]|Sh], false) -> [$]|sh_to_awk_1(Sh)];

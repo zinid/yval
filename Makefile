@@ -1,5 +1,7 @@
 REBAR ?= rebar3
 
+.PHONY: compile clean distclean xref dialyzer dialyze linter lint test
+
 all: compile
 
 compile:
@@ -11,16 +13,21 @@ clean:
 distclean: clean
 	rm -rf _build
 
-test:
-	@$(REBAR) eunit --cover
-
-cover: test
-	@$(REBAR) cover
-
 xref:
 	@$(REBAR) xref
 
 dialyzer:
 	@$(REBAR) dialyzer
 
-.PHONY: compile dialyzer clean distclean test cover xref
+dialyze:
+	@$(REBAR) dialyzer
+
+linter:
+	@$(REBAR) as lint lint
+
+lint:
+	@$(REBAR) as lint lint
+
+test:
+	@$(REBAR) eunit --cover
+	@$(REBAR) cover --verbose
