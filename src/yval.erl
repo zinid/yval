@@ -757,7 +757,7 @@ format_error({create_file, Why, Path}) ->
 format_error({disallowed_option, Opt}) ->
     format("Parameter '~s' is not allowed in this context", [Opt]);
 format_error({duplicated_key, Key}) ->
-    format("Duplicated key: ~s", [Key]);
+    format("Duplicated key: ~s", [format_yaml(Key)]);
 format_error({duplicated_value, Val}) ->
     format("Duplicated value: ~s", [format_yaml(Val)]);
 format_error({duplicated_option, Opt}) ->
@@ -781,8 +781,6 @@ format_error({read_dir, Why, Path}) ->
 format_error({read_file, Why, Path}) ->
     format("Failed to read file '~s': ~s",
            [Path, file:format_error(Why)]);
-format_error({unknown_option, [], Opt}) ->
-    format("Unknown parameter: ~s. There are no available parameters", [Opt]);
 format_error({unknown_option, _Known, Opt}) ->
     format("Unknown parameter: ~s", [Opt]);
 format_error(Unexpected) ->
