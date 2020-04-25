@@ -233,7 +233,7 @@ binary(Regexp, Opts) when is_list(Regexp) orelse is_binary(Regexp) ->
     {ok, Re} = re:compile(Regexp, Opts),
     fun(Val) ->
             Bin = to_binary(Val),
-            try re:run(Bin, Re, Opts) of
+            try re:run(Bin, Re) of
                 {match, _} -> Bin;
                 nomatch -> fail({nomatch, Regexp, Bin})
             catch _:badarg ->
@@ -258,7 +258,7 @@ string(Regexp, Opts) when is_list(Regexp) orelse is_binary(Regexp) ->
     {ok, Re} = re:compile(Regexp, Opts),
     fun(Val) ->
             Str = to_string(Val),
-            try re:run(Str, Re, Opts) of
+            try re:run(Str, Re) of
                 {match, _} -> Str;
                 nomatch -> fail({nomatch, Regexp, Str})
             catch _:badarg ->
