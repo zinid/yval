@@ -233,11 +233,18 @@ binary(Regexp, Opts) when is_list(Regexp) orelse is_binary(Regexp) ->
     {ok, Re} = re:compile(Regexp, Opts),
     fun(Val) ->
             Bin = to_binary(Val),
-            try re:run(Bin, Re) of
+            case re:run(Bin, Re) of
                 {match, _} -> Bin;
-                nomatch -> fail({nomatch, Regexp, Bin})
-            catch _:badarg ->
-                    fail({bad_unicode, Bin})
+                nomatch ->
+                    case lists:member(unicode, Opts) of
+                        true ->
+                            case is_unicode(Bin, utf8) of
+                                true -> fail({nomatch, Regexp, Bin});
+                                false -> fail({bad_unicode, Bin})
+                            end;
+                        false ->
+                            fail({nomatch, Regexp, Bin})
+                    end
             end
     end.
 
@@ -255,16 +262,9 @@ string(Regexp) ->
 
 -spec string(iodata(), [proplists:property()]) -> validator(string()).
 string(Regexp, Opts) when is_list(Regexp) orelse is_binary(Regexp) ->
-    {ok, Re} = re:compile(Regexp, Opts),
-    fun(Val) ->
-            Str = to_string(Val),
-            try re:run(Str, Re) of
-                {match, _} -> Str;
-                nomatch -> fail({nomatch, Regexp, Str})
-            catch _:badarg ->
-                    fail({bad_unicode, Str})
-            end
-    end.
+    and_then(
+      binary(Regexp, Opts),
+      fun binary_to_list/1).
 
 -spec term() -> validator(term()).
 term() ->
@@ -990,6 +990,15 @@ timeout_unit(S) ->
             {ok, day};
        true ->
             error
+    end.
+
+-spec is_unicode(binary(), unicode:encoding()) -> boolean().
+is_unicode(Bin, Encoding) ->
+    try unicode:characters_to_list(Bin, Encoding) of
+        L when is_list(L) -> true;
+        _ -> false
+    catch _:_ ->
+            false
     end.
 
 -spec unique(list(T), [proplists:property()]) -> list(T).
