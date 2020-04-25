@@ -226,15 +226,18 @@ binary() ->
 
 -spec binary(iodata()) -> validator(binary()).
 binary(Regexp) ->
-    binary(Regexp, []).
+    binary(Regexp, [unicode]).
 
 -spec binary(iodata(), [proplists:property()]) -> validator(binary()).
 binary(Regexp, Opts) when is_list(Regexp) orelse is_binary(Regexp) ->
+    {ok, Re} = re:compile(Regexp, Opts),
     fun(Val) ->
             Bin = to_binary(Val),
-            case re:run(Bin, Regexp, Opts) of
+            try re:run(Bin, Re, Opts) of
                 {match, _} -> Bin;
                 nomatch -> fail({nomatch, Regexp, Bin})
+            catch _:badarg ->
+                    fail({bad_unicode, Bin})
             end
     end.
 
@@ -248,15 +251,18 @@ string() ->
 
 -spec string(iodata()) -> validator(string()).
 string(Regexp) ->
-    string(Regexp, []).
+    string(Regexp, [unicode]).
 
 -spec string(iodata(), [proplists:property()]) -> validator(string()).
 string(Regexp, Opts) when is_list(Regexp) orelse is_binary(Regexp) ->
+    {ok, Re} = re:compile(Regexp, Opts),
     fun(Val) ->
             Str = to_string(Val),
-            case re:run(Str, Regexp, Opts) of
+            try re:run(Str, Re, Opts) of
                 {match, _} -> Str;
                 nomatch -> fail({nomatch, Regexp, Str})
+            catch _:badarg ->
+                    fail({bad_unicode, Str})
             end
     end.
 
@@ -466,7 +472,7 @@ rfc3339_time(Unit) ->
 
 -spec re() -> validator().
 re() ->
-    re([]).
+    re([unicode]).
 
 -spec re([proplists:property()]) -> validator().
 re(Opts) ->
@@ -670,6 +676,8 @@ format_error({bad_atom, Bad}) ->
     format("Expected string, got ~s instead", [format_yaml_type(Bad)]);
 format_error({bad_binary, Bad}) ->
     format("Expected string, got ~s instead", [format_yaml_type(Bad)]);
+format_error({bad_unicode, _}) ->
+    "Non UTF-8 string";
 format_error({bad_bool, Bad}) ->
     format("Expected boolean, got ~s instead", [format_yaml_type(Bad)]);
 format_error({bad_base64, _}) ->
