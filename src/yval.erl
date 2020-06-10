@@ -34,6 +34,7 @@
 -export([re/0, re/1, glob/0, glob/1]).
 -export([path/0, binary_sep/1]).
 -export([beam/0, beam/1, base64/0]).
+-export([hex/0]).
 -export([timeout/1, timeout/2]).
 -export([rfc3339_time/1]).
 -export([term/0, percent/0, percent/2]).
@@ -540,6 +541,15 @@ base64() ->
             end
     end.
 
+-spec hex() -> validator(binary()).
+hex() ->
+    fun(Val) ->
+            B = to_binary(Val),
+            try from_hex(B)
+            catch _:_ -> fail({bad_hex, B})
+            end
+    end.
+
 -spec non_empty(validator(T)) -> validator(T).
 non_empty(Fun) ->
     fun(Val) ->
@@ -682,6 +692,8 @@ format_error({bad_bool, Bad}) ->
     format("Expected boolean, got ~s instead", [format_yaml_type(Bad)]);
 format_error({bad_base64, _}) ->
     format("Invalid Base64 string", []);
+format_error({bad_hex, _}) ->
+    format("Invalid hexadecimal string", []);
 format_error({bad_cwd, Why}) ->
     format("Failed to get current directory name: ~s",
            [file:format_error(Why)]);
@@ -891,6 +903,18 @@ to_string(A) when is_atom(A) ->
     atom_to_list(A);
 to_string(S) ->
     binary_to_list(to_binary(S)).
+
+-spec from_hex(binary()) -> binary().
+from_hex(B) when (size(B) rem 2) == 0 ->
+    << <<(hexchar_to_digit(Hi)*16 + hexchar_to_digit(Lo))>> || <<Hi, Lo>> <= B >>.
+
+-spec hexchar_to_digit(char()) -> byte().
+hexchar_to_digit(C) when C >= $0 andalso C =< $9 ->
+    C - $0;
+hexchar_to_digit(C) when C >= $a andalso C =< $f ->
+    C - 87;
+hexchar_to_digit(C) when C >= $A andalso C =< $F ->
+    C - 55.
 
 -spec to_int(term()) -> integer().
 to_int(I) when is_integer(I) ->
