@@ -1126,7 +1126,7 @@ validate_options(Opts, Validators, DefaultValidator,
                        return_type(), options()) -> options().
 validate_options([{O, Val}|Opts], Validators, DefaultValidator,
                  Required, Defaults, Disallowed, CheckDups, Return, Acc) ->
-    Opt = to_atom(O),
+    Opt = to_existing_atom(O),
     case lists:member(Opt, Disallowed) of
         true -> fail({disallowed_option, Opt});
         false ->
@@ -1134,7 +1134,7 @@ validate_options([{O, Val}|Opts], Validators, DefaultValidator,
                 undefined ->
                     Allowed = maps:keys(Validators) -- Disallowed,
                     fail({unknown_option, Allowed, Opt});
-                Validator ->
+                Validator when is_atom(Opt) ->
                     case CheckDups andalso lists:keymember(Opt, 1, Acc) of
                         true -> fail({duplicated_option, Opt});
                         false ->
@@ -1143,7 +1143,11 @@ validate_options([{O, Val}|Opts], Validators, DefaultValidator,
                             validate_options(Opts, Validators, DefaultValidator,
                                              Required1, Defaults, Disallowed,
                                              CheckDups, Return, Acc1)
-                    end
+                    end;
+                _ ->
+                    validate_options(Opts, Validators, DefaultValidator,
+                                     Required, Defaults, Disallowed,
+                                     CheckDups, Return, Acc)
             end
     end;
 validate_options([], _, _, [], Defaults, _, _, Return, Acc) ->
