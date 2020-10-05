@@ -89,9 +89,9 @@ validate(Validator, Y) ->
             erlang:raise(Class, Reason, Stacktrace)
     end.
 
--spec fail(term(), term()) -> no_return().
-fail(Tag, Reason) ->
-    erlang:nif_error({Tag, Reason, erase_ctx()}).
+-spec fail(module(), term()) -> no_return().
+fail(Mod, Reason) ->
+    fail({Mod, Reason}).
 
 %%%===================================================================
 %%% Validators
@@ -803,6 +803,8 @@ format_error({read_file, Why, Path}) ->
            [Path, file:format_error(Why)]);
 format_error({unknown_option, _Known, Opt}) ->
     format("Unknown parameter: ~s", [Opt]);
+format_error({Mod, Reason}) when is_atom(Mod) ->
+    Mod:format_error(Reason);
 format_error(Unexpected) ->
     format("Unexpected error reason: ~p", [Unexpected]).
 
@@ -1095,7 +1097,7 @@ parse_ip_netmask(S) ->
 
 -spec fail(error_reason()) -> no_return().
 fail(Reason) ->
-    fail(?MODULE, Reason).
+    erlang:nif_error({?MODULE, Reason, erase_ctx()}).
 
 -spec prep_path(term()) -> binary().
 prep_path(Path0) ->
