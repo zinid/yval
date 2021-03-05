@@ -467,7 +467,7 @@ rfc3339_time(Unit) ->
             try calendar:rfc3339_to_system_time(S, [{unit, Unit}]) of
                 Int -> Int
             catch _:_ ->
-                    {bad_rfc3339_time, S}
+                    fail({bad_rfc3339_time, S})
             end
     end.
 
