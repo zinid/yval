@@ -271,31 +271,23 @@ url_any_test() ->
 
 bad_url_scheme_test() ->
     ?checkError(
-       {bad_url, {unsupported_scheme, http}, <<"http://domain.tld">>},
+       {bad_url, {unsupported_scheme, <<"http">>}, <<"http://domain.tld">>},
        v(url([https]), <<"http://domain.tld">>)).
 
 bad_url_host_test() ->
     ?checkError(
        {bad_url, empty_host, <<"http:///path">>}, v(url(), <<"http:///path">>)).
 
-bad_url_no_default_port_test() ->
-    ?checkError(
-       {bad_url, {no_default_port, foo, _}, <<"foo://domain.tld">>},
-       v(url([]), <<"foo://domain.tld">>)).
-
 bad_url_bad_port_test() ->
     ?checkError(
        {bad_url, bad_port, <<"http://domain.tld:0">>},
        v(url(), <<"http://domain.tld:0">>)),
     ?checkError(
-       {bad_url, bad_port, <<"http://domain.tld:-1">>},
-       v(url(), <<"http://domain.tld:-1">>)),
-    ?checkError(
        {bad_url, bad_port, <<"http://domain.tld:65536">>},
        v(url(), <<"http://domain.tld:65536">>)).
 
 bad_url_test() ->
-    ?checkError({bad_url, _, <<"bad">>}, v(url(), <<"bad">>)).
+    ?checkError({bad_url, _, <<":bad:">>}, v(url(), <<":bad:">>)).
 
 octal_test() ->
     File = file(["a: \"644\""]),
