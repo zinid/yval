@@ -369,26 +369,35 @@ directory(write) ->
 
 -spec url() -> validator(binary()).
 url() ->
-    url([http, https]).
+    url([<<"http">>, <<"https">>]).
 
 -spec url([atom()]) -> validator(binary()).
 url(Schemes) ->
     fun(Val) ->
             URL = to_binary(Val),
-            case http_uri:parse(to_string(URL)) of
-                {ok, {_, _, Host, _, _, _}} when Host == ""; Host == <<"">> ->
-                    fail({bad_url, empty_host, URL});
-                {ok, {_, _, _, Port, _, _}} when Port =< 0 orelse Port >= 65536 ->
+            case uri_string:parse(URL) of
+                #{port := Port} when Port < 1;
+                                     Port > 65535 ->
                     fail({bad_url, bad_port, URL});
-                {ok, {Scheme, _, _, _, _, _}} when Schemes /= [] ->
-                    case lists:member(Scheme, Schemes) of
-                        true -> URL;
-                        false ->
-                            fail({bad_url, {unsupported_scheme, Scheme}, URL})
+                #{} = Parsed ->
+                    case {maps:get(scheme, Parsed, <<>>),
+                          maps:get(host, Parsed, <<>>)} of
+                        {<<>>, _} ->
+                            fail({bad_url, no_scheme, URL});
+                        {_, <<>>} ->
+                            fail({bad_url, empty_host, URL});
+                        {Scheme, _} when Schemes /= [] ->
+                            case lists:member(Scheme, Schemes) of
+                                true ->
+                                    URL;
+                                false ->
+                                    fail({bad_url, {unsupported_scheme, Scheme},
+                                          URL})
+                            end;
+                        {_, _} ->
+                            URL
                     end;
-                {ok, _} ->
-                    URL;
-                {error, Why} ->
+                {error, Why, _Info} ->
                     fail({bad_url, Why, URL})
             end
     end.
@@ -758,10 +767,10 @@ format_error({bad_rfc3339_time, S}) ->
     format("Expected RFC 3339 timestamp, got: ~s", [S]);
 format_error({bad_url, empty_host, URL}) ->
     format("Empty hostname in the URL: ~s", [URL]);
+format_error({bad_url, no_scheme, URL}) ->
+    format("No scheme in the URL: ~s", [URL]);
 format_error({bad_url, {unsupported_scheme, Scheme}, URL}) ->
     format("Unsupported scheme '~s' in the URL: ~s", [Scheme, URL]);
-format_error({bad_url, {no_default_port, _, _}, URL}) ->
-    format("Missing port in the URL: ~s", [URL]);
 format_error({bad_url, bad_port, URL}) ->
     format("Invalid port number in the URL: ~s", [URL]);
 format_error({bad_url, _, URL}) ->

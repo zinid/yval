@@ -262,55 +262,32 @@ bad_directory_write_test() ->
        v(File, #{a => directory(write)})).
 
 url_test() ->
-    File = file(["a: http://domain.tld",
-		 "b: https://domain.tld"]),
-    ?assertEqual(
-       [{a, <<"http://domain.tld">>}, {b, <<"https://domain.tld">>}],
-       v(File, #{a => url(), b => url()})).
+    ?assertEqual(<<"http://domain.tld">>, v(url(), <<"http://domain.tld">>)),
+    ?assertEqual(<<"https://domain.tld">>, v(url(), <<"https://domain.tld">>)).
 
 url_any_test() ->
-    File = file(["a: wss://domain.tld:8443"]),
     ?assertEqual(
-       [{a, <<"wss://domain.tld:8443">>}],
-       v(File, #{a => url([])})).
+       <<"wss://domain.tld:8443">>, v(url([]), <<"wss://domain.tld:8443">>)).
 
 bad_url_scheme_test() ->
-    File = file(["a: http://domain.tld"]),
     ?checkError(
-       {bad_url, {unsupported_scheme, http}, <<"http://domain.tld">>},
-       v(File, #{a => url([https])})).
+       {bad_url, {unsupported_scheme, <<"http">>}, <<"http://domain.tld">>},
+       v(url([https]), <<"http://domain.tld">>)).
 
 bad_url_host_test() ->
-    File = file(["a: http:///path"]),
     ?checkError(
-       {bad_url, empty_host, <<"http:///path">>},
-       v(File, #{a => url()})).
-
-bad_url_no_default_port_test() ->
-    File = file(["a: foo://domain.tld"]),
-    ?checkError(
-       {bad_url, {no_default_port, foo, _}, _},
-       v(File, #{a => url([])})).
+       {bad_url, empty_host, <<"http:///path">>}, v(url(), <<"http:///path">>)).
 
 bad_url_bad_port_test() ->
-    File = file(["a: http://domain.tld:0"]),
     ?checkError(
-       {bad_url, bad_port, _},
-       v(File, #{a => url([])})),
-    File = file(["a: http://domain.tld:-1"]),
+       {bad_url, bad_port, <<"http://domain.tld:0">>},
+       v(url(), <<"http://domain.tld:0">>)),
     ?checkError(
-       {bad_url, bad_port, _},
-       v(File, #{a => url([])})),
-    File = file(["a: http://domain.tld:65536"]),
-    ?checkError(
-       {bad_url, bad_port, _},
-       v(File, #{a => url([])})).
+       {bad_url, bad_port, <<"http://domain.tld:65536">>},
+       v(url(), <<"http://domain.tld:65536">>)).
 
 bad_url_test() ->
-    File = file(["a: bad"]),
-    ?checkError(
-       {bad_url, _, <<"bad">>},
-       v(File, #{a => url()})).
+    ?checkError({bad_url, _, <<":bad:">>}, v(url(), <<":bad:">>)).
 
 octal_test() ->
     File = file(["a: \"644\""]),
