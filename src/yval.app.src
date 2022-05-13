@@ -19,7 +19,7 @@
   {vsn,          "1.0.5"},
   {modules,      []},
   {registered,   []},
-  {applications, [kernel, stdlib, inets]},
+  {applications, [kernel, stdlib]},
   {env,          []},
 
   %% hex.pm packaging:
