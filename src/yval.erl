@@ -373,7 +373,7 @@ url() ->
 
 -spec url([atom()]) -> validator(binary()).
 url(Schemes0) ->
-    Schemes = [atom_to_binary(S) || S <- Schemes0],
+    Schemes = [atom_to_binary(S, latin1) || S <- Schemes0],
     fun(Val) ->
             URL = to_binary(Val),
             case uri_string:parse(URL) of
